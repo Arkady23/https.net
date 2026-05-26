@@ -16,7 +16,7 @@ The "-c filename.pfx" parameter specifies the name of the file containing your s
 Prg scripts are processed using COM technology and VFP 9/10(Advanced) DBMS, not CGI. COM objects are created as requests from clients are executed. By default, visual error output in VFP 9/10(Advanced) DBMS is disabled. In case of an error in prg, a description of this error is returned to the script in the ERROR_MESS variable. Below is an example of a prg file and the result of its work. And also the result of working with a similar prg file, but with an error (the last line break ";" is missing).
 ```PowerShell
 PS D:\> D:\work\httpd\https.net.exe /?
-Multithreaded http.net server version 2.0.1, (C) a.kornienko.ru May 2026.
+Multithreaded http.net server version 2.0.2, (C) a.kornienko.ru May 2026.
 
 USAGE:
     https.net [Parameter1 Value1] [Parameter2 Value2] ...
@@ -47,11 +47,16 @@ Parameters:                                                                  Val
      -s      Number of requests being processed at the same time. Maximum        100
              value is 1000.
      -s1     Allowed number of simultaneously processed requests per IP.         16
-     -w      Allowed time to reserve an open channel for request that did not    10
+     -w      Allowed time to reserve an open channel for request that did not    5
              started. From 1 to 20 seconds.
-     -n      Maximum number of dynamically running interpreters or MS VFP        50
-             instances. Processes are launched as needed depending on the
-             number of concurrent requests. Maximum value is 1000.
+     -n      Maximum number of dynamically running interpreters. Processes       16
+             are launched as needed depending on the number of concurrent
+             requests. Maximum value is 1000.
+     -n1     The initial number of interpreters to pre-start.                    2
+     -f      Maximum number of dynamically launched MS Visual FoxPro             16
+             instances. Visual FoxPro COMs are created as needed, depending
+             on the number of concurrent requests. The maximum value is 1000.
+     -f1     The initial number of pre-created Visual FoxPro COMs.               2
      -log    Size of the query log in rows. The log consists of two              10000
              interleaved versions http.net.x.log and http.net.y.log. If the
              size is set to less than 80, then the log is not kept.
@@ -284,4 +289,8 @@ If there is an error in the prg file:
 3.9.1 http.net / 1.9.1 https.net. April 2026. Before creating a new COM "VisualFoxPro.Application", added cleaning of the previous COM and calling of the garbage collector.  
 3.9.2 http.net / 1.9.2 https.net. April 2026. ATTENTION! Using a certificate with TLS 1.2 encryption is no longer supported; only TLS 1.3 is supported. The maximum number of default databases has been increased to 50.  
 2.0.0 https.net. May 2026. Два сервера теперь объеденены в один. По рекомендации ИИ все операции тепенрь полностью асинхронны (почти). Произведен переход на C# .NET10. Сервер стал отдавать запросы заметно быстрее при первом обращении. Теперь скорость загрузки файлов сравнима, как при повторной загрузке из кеша. Добавлен параметр -p1 — это порт для http-соединений. По умолчанию его значение 8080. Если указать значение 0, то http работать не будет, только https. Если отсутствует сертификат или -p 0, то сервер будет принимать только http-соединения. В противном случае будут работать оба протокола — http и https.  
-2.0.1 https.net. May 2026. В версии 2.0.0 была допущена ошибка отсутствия асинхронного ожидания вывода статических данных. Ошибка исправлена.
+2.0.1 https.net. May 2026. В версии 2.0.0 была допущена ошибка отсутствия асинхронного ожидания вывода статических данных. Ошибка исправлена.  
+2.0.2 May 2026. Исправлена ошибка, допущенная в прошлых версиях, не позволяющая динамически создавать новые COM Visual FoxPro. Движок сервера
+server.cs практически полностью переписан ИИ google.com. По утверждению ИИ теперь сервер стал действительно очень производительным! Добавлены
+параметры f, f1 и n1. Теперь максимальное число процессов CGI и процессов vfp9.exe или vfpa.exe задаётся отдельными параметрами n и f
+соответственно. Параметры n1 и f1 задают число процессов запускаемых при старте сервера. Ранее запускались по одному процессу CGI и VFP. Сейчас по умолчанию n1=2 и f1=2.  
