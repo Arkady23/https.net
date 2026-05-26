@@ -1,7 +1,7 @@
 //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 //!!                                                         !!
 //!!    https.net сервер на C#.      Автор: A.Б.Корниенко    !!
-//!!    class Session                версия от 20.05.2026    !!
+//!!    class Session                версия от 26.05.2026    !!
 //!!                                                         !!
 //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
@@ -16,34 +16,35 @@ using System.Diagnostics;
 using System.Net.Security;
 using System.Threading.Tasks;
 using System.Collections.Generic;
+using System.Collections.Concurrent;
 
 namespace https2 {
 
   public class Session {
     int i, j, k, m, m1, i1, i2, k1, len, eof, Content_Length, n1, n2, nbuf;
-    string h1, reso, res, head, Host, Content_Type, Content_T, IP, jt,
+    string h1, reso, res, head, Host, Content_Type, Content_T, IP, x1,
            Content_Disposition, QUERY_STRING, dirname, filename, prg,
-           fullprg, Protocol, x1;
+           fullprg, Protocol;
     Queue<string> heads = new Queue<string>();
+    CancellationTokenSource readCts = new();
+    CancellationTokenSource handCts = new();
+    CancellationTokenSource vfpCts = new();
     byte[] buf = new byte[F.bu];
     SslStream sslStream;
     FileStream file1;           // Файл для записи POST-данных
     IPEndPoint point;           // IP адрес клиента
     Stream stream;              // Объявляем объект как базовый Stream
-    Socket client;              // Сокет клиента
     FileStream fs;              // Файл статического ресурса
+    Task<bool> ts;              // Задача запуска обработчика
     Encoding UTF;
     DateTime dt1;
     byte R, R1;
     double n;
     long nf;                    // Длина посылаемого файла/потока
     bool l;                     // false, если заголовки прочитаны
-    Task t;                     // Задачи ввода-вывода
-    Task<int> ti;               // Задача контроля ожидания
-    Task<bool> ts;              // Задача запуска обработчика
+    Task t;                     // Задача сессии и задача ввода-вывода
 
     public Session(int j) {
-      jt = (j).ToString();
       dirname=filename= string.Empty;
       this.Init();
       this.j = j;
@@ -73,14 +74,15 @@ namespace https2 {
 
       head=h1=res=reso=Host=Content_T=Content_Type=Content_Disposition=QUERY_STRING=string.Empty;
       UTF = Encoding.GetEncoding(F.UTF8);
-      eof = len = i2 = Content_Length = F.i0;
-      k = k1 = n1 = F.bu1;                  // Смещение для чтения 1-ой части заголовков
+      len = i2 = Content_Length = F.i0;
       F.IP = F.IP1 = IP;                    // Предыдущий IP для сравнения на выходе и входе
       fs = file1 = null;                    // Освободить объекты
+      k1 = n2 = F.bu3;                      // Смещение для чтения 2-ой части заголовков
+      k = n1 = F.bu1;                       // Смещение для чтения 1-ой части заголовков
       R = R1 = F.b0;                        // Однобайтовые флажки
       heads.Clear();                        // Очистка блока заголовков
       nbuf = F.bu4;                         // Число читаемых за один раз в заголовках байтов
-      n2 = F.bu3;                           // Смещение для чтения 2-ой части заголовков
+      eof = F.i1;                           // Флаг состояния чтения потока
       l = true;                             // Заголовок пока не прочитан
     }
 
@@ -92,23 +94,29 @@ namespace https2 {
       }
     }
 
-    public async Task AcceptAsync(Task<Socket> tClient, string Prot) {
-      client = await tClient;
-      dt1 = DateTime.UtcNow;
+    public async Task Start(Socket client, string Prot) {
+      client.NoDelay = true;
       point = client.RemoteEndPoint as IPEndPoint;
       IP = point.Address.ToString();
       Protocol = Prot;
       if((F.iIP>F.st1 && F.IP==IP) || (F.iIP1>F.qu1 && F.IP1==IP)) {
-        clientClose();
+        return;
       } else {
         Interlocked.Increment(ref F.nClients);
         if(F.IP1==IP) Interlocked.Increment(ref F.iIP1);
 
-        if(Prot=="https") {
-          using var cts = new CancellationTokenSource(2000);
+        if(Protocol=="https") {
+
+          // Гарантированно оживляем источник токенов
+          if(handCts == null || !handCts.TryReset()) {
+            handCts?.Dispose();
+            handCts = new CancellationTokenSource();
+          }
+          handCts.CancelAfter(F.tw);
+
           try{
             sslStream = new SslStream(new NetworkStream(client, true), false);
-            await sslStream.AuthenticateAsServerAsync(F.cert, cts.Token);
+            await sslStream.AuthenticateAsServerAsync(F.cert, handCts.Token);
             stream = sslStream;
           }catch (OperationCanceledException){
             stream?.Dispose();
@@ -131,8 +139,6 @@ namespace https2 {
         if(stream != null) {
           if(F.IP1==IP) Interlocked.Decrement(ref F.iIP1);
 
-          // Чтение заголовков
-          sRead();                   // Читаем во вторую четверть буфера
           while (l) {
             await sReadAsync();      // Читаем асинхронно
             if(i>F.i0) {
@@ -143,8 +149,14 @@ namespace https2 {
             }
           }
 
+          if(eof<F.i0) {
+            stream.Close();
+            Init();
+            return;
+          }
+
           // Заголовки прочитали, фомируем ответ
-          if(R>F.b0 && eof==F.i0) {
+          if(R>F.b0) {
             n1 = F.i0;
             n2 = F.bu2;
             nbuf = F.bu8;
@@ -172,7 +184,7 @@ namespace https2 {
                     putHead(false);
                     if(!File.Exists(res)) {
                       R = F.b0;
-                      failure("404 Not Found");
+                      await failure("404 Not Found");
                     }
                   }
                 }
@@ -182,7 +194,7 @@ namespace https2 {
           } else {
             if(res.Length>F.i0) {
               res+=" -";
-              failure("403 Forbidden");
+              await failure("403 Forbidden");
 
               // На первый раз пропускаем, но счетчик у этого IP увеличиваем.
               fIP();
@@ -191,24 +203,14 @@ namespace https2 {
           }
           stream.Close();
         }
-        clientClose();
 
         if(res.Length>F.i1 && F.log9>F.i0) {
           n = DateTime.UtcNow.Subtract(dt1).TotalMilliseconds;
-          F.log2("/"+(n>9999?"****" : n.ToString("0000"))+" "+IP+" "+jt+"\t"+res);
+          F.log2("/"+(n>9999?"****" : n.ToString("0000"))+" "+IP+" "+j+"\t"+res);
         }
 
         Init();
       }
-
-      // Освободить индекс клиента и сделать его доступным
-      F.freeSession(j, Protocol);
-    }
-
-    // close the socket associated with the client
-    void clientClose() {
-      try { client.Shutdown(SocketShutdown.Send); } catch (Exception) { }
-      client.Close();
     }
 
     void putHead(bool CT) {
@@ -274,21 +276,13 @@ namespace https2 {
               break;
             case F.b2:
               m = -F.i1;
-              if(F.cgia) {
-                try{
-                  m = F.freeCGI.Pop();
-                  ts = F.start_CGI(m);
-                } catch(Exception) { }
-              }
+              if(F.cgia && F.freeCGI.TryPop(out m))
+                 ts = Task.Run(() => F.start_CGI(m));
               break;
             case F.b3:
               m = -F.i1;
-              if(F.vfpa != null) {
-                try{
-                  m = F.freeVFP.Pop();
-                  ts = F.start_VFP(m);
-                } catch(Exception) { }
-              }
+              if(F.vfpa != null && F.freeVFP.TryPop(out m))
+                 ts = Task.Run(() => F.start_VFP(m));
               break;
             }
             break;
@@ -410,53 +404,62 @@ namespace https2 {
       }
     }
 
-    void failure(string s) {
+    async Task failure(string s) {
       string z = F.H1+s+"\r\n";
       i = UTF.GetBytes(z,F.i0,z.Length,buf,F.i0);
-      stream.Write(buf,F.i0,i);
+      await stream.WriteAsync(buf,F.i0,i);
     }
 
-    // Чтение данных синхронно с ожиданием F.tw мс
-    void sRead() {
-      try {
-         ti = stream.ReadAsync(buf, k1, nbuf);
-       } catch(Exception) {
-         l = false;                            // достигнут конец потока
-         eof = -F.i1;
-       }
-    }
-
-    // Запись данных POST синхронно
-    void sWrite(byte b) {
+    // Запись данных POST aсинхронно*
+    ValueTask sWriteAsync(byte b, ReadOnlyMemory<byte> data) {
       switch(b) {
       case F.b2:
-        F.proc[m].StandardInput.BaseStream.Write(buf,k,i);
-        break;
+        return F.proc[m].StandardInput.BaseStream.WriteAsync(data);
       case F.b3:
 
         // Только кодировка F.vfpw формирует строку без кодирования
-        F.vfp[m].SetVar("__IO",F.vfpw.GetString(buf,k,i));
+        F.vfp[m].SetVar("__IO",F.vfpw.GetString(data.Span));
 
         F.vfp[m].DoCmd("STD_IO.Write(__IO)");
-        break;
+        return ValueTask.CompletedTask;
       default:
-        file1.Write(buf,k,i);      // Пишем синхронно
-        break;
+        return file1.WriteAsync(data);
       }
     }
 
     // Асинхронное Чтение данных в половинку буфера
     async Task sReadAsync() {
-      using var cts = new CancellationTokenSource(F.tw);
-      k1 = k1<F.bu2? n2 : n1;                  // чередуем каке-то буферы в половинках
+
+      // Гарантированно оживляем источник токенов
+      if (readCts == null || !readCts.TryReset()) {
+         readCts?.Dispose();
+         readCts = new CancellationTokenSource();
+      }
+      readCts.CancelAfter(F.tw);
+
+      k1 = k1 < F.bu2 ? n2 : n1; // чередуем буферы в половинках
+
       try {
-        i = await ti.WaitAsync(cts.Token);
-        ti = stream.ReadAsync(buf, k1, nbuf);  // минимальный размер буфера из всех половинок
+        i = await stream.ReadAsync(buf.AsMemory(k1, nbuf), readCts.Token);
+
+        // Дополнительная проверка на конец потока (EOF)
+        if(i > F.i0) {
+          if(eof > F.i0) {
+            dt1 = DateTime.UtcNow;
+            eof = F.i0;
+          }
+        } else {
+          eof = -F.i1;
+        }
       } catch(OperationCanceledException) {
-        i = -F.i1;
+
+        // Сюда мы гарантированно прилетим при таймауте F.tw, 
+        // при этом фоновая задача в ОС гарантированно УНИЧТОЖИТСЯ
+        i=eof= -F.i1;
+
       } catch(Exception) {
-        l = false;                             // достигнут конец потока
-        eof = -F.i1;
+        i=eof= -F.i1;
+        l = false;    // Достигнут конец потока или сетевая ошибка
       }
     }
 
@@ -467,11 +470,11 @@ namespace https2 {
       nf = fs.Length;
       head += nf+"\r\n\r\n";
       i = UTF.GetBytes(head, F.i0, head.Length, buf, n1);
-      i2 = fs.Read(buf, i, nbuf-i);            // Заполнить первую половину буфера синхронно
+      i2 = await fs.ReadAsync(buf, i, nbuf-i); // Заполнить первую половину буфера синхронно
       t = stream.WriteAsync(buf, n1, i2+i);    // Асинхронно записать в поток
       k = n2;
       while (i2<nf) {
-        i = fs.Read(buf, k, nbuf);             // Синхронно прочитать
+        i = await fs.ReadAsync(buf, k, nbuf);  // Синхронно прочитать
         if(i>F.i0) {
           await t;
           t = stream.WriteAsync(buf, k, i);
@@ -516,7 +519,7 @@ namespace https2 {
           if(i>F.i0) {
             i += len;
             i2 += i;
-            sWrite(b);  // Пишем синхронно
+            await sWriteAsync(b, buf.AsMemory(k,i));
             l = i2<Content_Length;
             len = F.i0;
             k = k1;
@@ -526,7 +529,7 @@ namespace https2 {
         }
       } else {
         i = len;
-        sWrite(b);      // Пишем синхронно
+        await sWriteAsync(b, buf.AsMemory(k,i));
       }
     }
 
@@ -626,7 +629,7 @@ namespace https2 {
           await t;
         }
       }
-      await F.clear_cgi(m);
+      _= Task.Run(() => F.clear_cgi(m));
     }
 
     // Вывод текстового сообщения длиной до 1 буфера
@@ -642,7 +645,21 @@ namespace https2 {
       if(i2>Content_Length) i1 -= i2-Content_Length;
 
       // Файлы выводятся только с таким кодированием
-      F.vfpw.GetBytes(F.vfp[m].Eval("STD_IO.Read("+i1+")"), F.i0, i1, buf, k1);
+      object vfpResult = F.vfp[m].Eval("STD_IO.Read(" + i1 + ")");
+
+      // Если это любой массив (byte[] или Byte[*]) — копируем быстро
+      if (vfpResult is Array vfpArray) {
+        Array.Copy(vfpArray, vfpArray.GetLowerBound(0), buf, k1, Math.Min(i1, vfpArray.Length));
+      }
+
+      // Если другая среда внезапно вернула старую добрую строку
+      else if (vfpResult is string vfpString) {
+        F.vfpw.GetBytes(vfpString, F.i0, i1, buf, k1);
+      }
+    }
+
+    void clear_prg(int m) {
+      _= Task.Run(() => F.clear_prg(m));
     }
 
     async Task send_prg() {
@@ -655,10 +672,7 @@ namespace https2 {
         return;
       }
 
-      if(await ts) {
-        try{ F.start_VFP3(m); }
-        catch(Exception) { m = F.db; }
-      }
+      if(await ts) m = F.db;
       if(m >= F.db) {
 
         // Вывести сообщение, что все процессы VFP заняты
@@ -681,25 +695,32 @@ namespace https2 {
           await send_stream(R);  // Записываем в STD_IO в VFP
         }
         if(eof < F.i0) {         // Если обнаружен разрыв связи
-          F.clear_prg(m);
+          clear_prg(m);
           return;
         }
       }
 
       // Вывод полученных данных prg-скрипта
-      using var cts = new CancellationTokenSource(F.i8);
+
+
+      if (vfpCts == null || !vfpCts.TryReset()) {
+         vfpCts?.Dispose();
+         vfpCts = new CancellationTokenSource();
+      }
+      vfpCts.CancelAfter(F.i8);
+
       try{
         head = F.OK+head;
         if(R1==F.b0){
 
           // Если выполнение prg не закончилось за 25 минут, то аварийно снять процесс
           await Task.Run(() => F.vfp[m].Eval(F.beforStr9(ref prg,".prg")+
-                        "()")).WaitAsync(cts.Token);
+                        "()")).WaitAsync(vfpCts.Token);
 
         }else{      // Случай API
           var api= Task.Run(() => F.vfp[m].Eval(F.beforStr9(ref prg,".prg")+"()"));
 
-          await api.WaitAsync(cts.Token);
+          await api.WaitAsync(vfpCts.Token);
           var ret = await api;
           if(ret.GetType().Name=="String")
              if(ret.Length>5) {
@@ -743,19 +764,9 @@ namespace https2 {
         t = stream.WriteAsync(buf, k1, i1);
 
       }
+      clear_prg(m);
       await t;
-      F.clear_prg(m);
     }
 
-    // Завершить ожидание
-    public void Stop() {
-       if(client != null) {
-         try { client.Shutdown(SocketShutdown.Both); } catch (Exception) { }
-         client.Close();
-       }
-
-      // Освободить индекс клиента и сделать его доступным
-      F.freeSession(j, string.Empty);
-    }
   }
 }

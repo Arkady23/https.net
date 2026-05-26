@@ -1,7 +1,7 @@
 //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 //!!                                                     !!
 //!!   https.net сервер на C#.    Автор: A.Б.Корниенко   !!
-//!!   Головной блок              версия от 20.05.2026   !!
+//!!   Головной блок              версия от 26.05.2026   !!
 //!!                                                     !!
 //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
@@ -18,45 +18,40 @@ using System.Net.Security;
 using System.Windows.Forms;
 using System.ComponentModel;
 using System.Threading.Tasks;
-using System.Collections.Generic;
 using System.Collections.Concurrent;
 using System.Runtime.InteropServices;
 using System.Security.Authentication;
 using System.Security.Cryptography.X509Certificates;
 
 public class F : Form {
-    public static Semaphore maxNumberAcceptedClients;
-    public static Semaphore maxNumberAcceptedClients1;
-    public static ConcurrentStack<int> freeClientsPool;
-    public static ConcurrentStack<int> freeClientsPool1;
-    public static Stack<int> freeCGI;
-    public static Stack<int> freeVFP;
-    IContainer conta = new Container();
-    ContextMenuStrip menu = new ContextMenuStrip();
     ToolStripMenuItem menuQ = new ToolStripMenuItem();
     ToolStripMenuItem menuF = new ToolStripMenuItem();
     ToolStripMenuItem menuS = new ToolStripMenuItem();
     ToolStripMenuItem menuR = new ToolStripMenuItem();
-    Thread tSer, tSer1;
+    ContextMenuStrip menu = new ContextMenuStrip();
+    public static ConcurrentStack<int> freeCGI;
+    public static ConcurrentStack<int> freeVFP;
+    IContainer conta = new Container();
+    static Server ser;
     NotifyIcon nIcon;
     TextBox textBox1;
     string[] param;
-    Server ser;
 
     private const string hn="https.net";
     private const string hs=hn+" server";
     public const string CL="Content-Length",CT="Content-Type",CD="Content-Disposition",
-                 CC="Cache-Control: public, max-age=2300000\r\n", OK=H1+"200 OK\r\n",
-                 H1="HTTP/1.1 ",UTF8="UTF-8",CLR="sys(2004)+'VFPclear.prg'",DI="index.html",
+                 DI="index.html", stopIconText= hs+" is stopped", initCGI= "initcgi.",
+                 CC="Cache-Control: public, max-age=2300000\r\n", H1= "HTTP/1.1 ",
+                 OK= H1+"200 OK\r\n",UTF8="UTF-8",CLR="sys(2004)+'VFPclear.prg'",
                  logX=hn+".x.log", logY=hn+".y.log", CT_T=CT+": text/plain\r\n", 
-                 stopIconText= hs+" is stopped", initCGI= "initcgi.",
+                 https="https", http="http",
            //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-                 ver="version 2.0.1", verD="May 2026";        //!!
+                 ver="version 2.0.2", verD="May 2026";        //!!
            //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     public const  byte b0=0, b1=1, b2=2, b3=3, b10=10, b13=13;
     public const  int i0=0, i1=1, i2=2, i3=3, i4=4, i8=1500000, i9=2147483647;
     public static int i, k, port, port1, post, st, qu, bu, bu0, bu1, bu2, bu3, bu4, bu8,
-                  db, log9, st1, st2, qu1, tw, iIP, iIP1, nClients, s9=1000, logi=i0;
+                  db, db1, it, it1, log9, st1, qu1, tw, iIP, iIP1, nClients, logi=i0;
     public static string IP, IP1, DocumentRoot, Folder=Thread.GetDomain().BaseDirectory,
                   DirectoryIndex, Proc, Args, Ext, logZ=string.Empty, DirectorySessions;
     private static string Fullexe = Folder+hn+".exe";
@@ -243,12 +238,13 @@ public class F : Form {
       port=8443;
       bu=131072;
       Ext="pyc";
-      tw=10000;
+      db1=it1=2;
+      db=it=16;
+      tw=5000;
       qu=100;
       st=100;
       st1=16;
       qu1=8;
-      db=50;
 
       if(getArgs(args)){
         if(notQuit) {
@@ -270,41 +266,14 @@ public class F : Form {
                      CertificateRevocationCheckMode = X509RevocationMode.NoCheck,
                      EnabledSslProtocols = SslProtocols.Tls13,
                      ClientCertificateRequired = false };
-            } catch(Exception ex) {
-              if(log9>i0) log2("\tCertificate error: "+ex.Message);
+            } catch(Exception e) {
+              if(log9>i0) log2("\tCertificate error: "+e.Message);
               cert = null;
             }
             if(!(cert!=null)) port=i0;
           }
           if(port>i0 || port1>i0) {
-            if(port>i0 && port1>i0) {
-              if(st< 9) {
-                st2 = i4; st = i4;
-              } else if(st< 13) {
-                st2 = i4; st-=st2;
-              } else {
-                st2 = st/i3; st-=st2;
-              }
-            } else if(port1>i0) {
-              st2 = st; st = i0;
-            } else {
-              st2 = i0;
-            }
-
-            // Создать стеки индексов клиентов с симофорным контролем максимального значения
-            if(port1>i0) {
-              maxNumberAcceptedClients1 = new Semaphore(st2,st2);
-              freeClientsPool1 = new ConcurrentStack<int>();
-              // Заполнить стек клиентов индексами
-              for (k=i0; k<st2; k++) freeClientsPool1.Push(k);
-            }
-            nClients = st+st2;      // Начальное число соединений
-            if(port>i0) {
-              maxNumberAcceptedClients = new Semaphore(st,st);
-              freeClientsPool = new ConcurrentStack<int>();
-              // Заполнить стек клиентов индексами
-              for (i=k; i<nClients; i++) freeClientsPool.Push(i);
-            }
+            if(st<i2) st= i2;
 
             // Разделить буфер для ускорения чтения
             bu4 = bu/i4;
@@ -314,10 +283,8 @@ public class F : Form {
             bu8 = bu4+bu4;
             bu0 = bu - i1;
 
-            // Общая длина очереди
-            try { qu *= st; } catch(Exception) { qu = i9; };
-
             // Создать объекты сессий предварительно очистив сессии от предыдущих запусков
+            nClients = st;     // Начальное число соединений
             ThreadPool.SetMinThreads(nClients,nClients);
             session = new Session[nClients];
             try{
@@ -332,17 +299,23 @@ public class F : Form {
         if(notExit) {
 
           // Запустить экземпляр CGI
-          cgib = new byte[db];
-          proc = new Process[db];
-          cgi = new ProcessStartInfo[db];
-          cgia = ! await start_CGI(i0);
+          cgib = new byte[it];
+          proc = new Process[it];
+          cgi = new ProcessStartInfo[it];
+          cgia = ! start_CGI(i0,b1);
           if(cgia) {
+            if(it1>0) {
+            if(it1>db) it1=it;
+              for (i=i1; i<it1; i++) if(start_CGI(i,b1)) break;
+            } else {
+              cgiQuit(i0);
+              cgib[i0]=b0;
+            }
 
             // Свободные номера просессов для CGI
-            freeCGI = new Stack<int>(db);
-            for (i=db; i>i0; ) freeCGI.Push(--i);
+            freeCGI = new ConcurrentStack<int>();
+            for (i=it; i>i0; ) freeCGI.Push(--i);
 
-            cgib[i0] = b1;
           } else {
             if(log9>i0)
                log("\tThe \""+Proc+("\" interpreter or\r\n".PadRight(41))+
@@ -377,8 +350,19 @@ public class F : Form {
               start_VFP3(i0);
 
               // Свободные номера баз данных
-              freeVFP= new Stack<int>(db);
+              freeVFP= new ConcurrentStack<int>();
               for (i=db; i>i0; ) freeVFP.Push(--i);
+            }
+          }
+
+          // Создать начальное количество COM Visual FoxPro
+          if(vfpa!=null){
+            if(db1>0) {
+              if(db1>db) db1=db;
+              for (i=i1; i<db1; i++) if(start_VFP(i,b1)) break;
+            } else {
+              vfpQuit(i0);
+              vfpb[i0]=b0;
             }
           }
 
@@ -389,23 +373,13 @@ public class F : Form {
           ser = new Server();
           if(ser.Start(ep,ep1)) {
 
-            // Запуск чтения сокетов
-            if(port1>i0) {
-              tSer1 = new Thread(ser.StartAccept1);
-              tSer1.Start();
-            }
-            if(port>i0) {
-              tSer = new Thread(ser.StartAccept);
-              tSer.Start();
-            }
-
             // Отобразить значок работы
             nIcon.Icon = ico;  // SystemIcons.Shield;
             nIcon.Text = hs+" is running";
             if(log9>i0) {
-              log("\tThe "+hs+" "+ver+" is running,\r\n"+"\t".PadLeft(24)+
-                  "http-sessions "+(port1>0?"interval from 0 to "+(st2-1):
-                  "are not provided")+".");
+              log("\tThe "+hs+" "+ver+" is running.\r\n"+"\t".PadLeft(24)+
+                  ((port>0 && port1>0)?"Both https- and http" :
+                  (port>0? https:http))+"-sessions are available.");
             }
 
           } else {
@@ -437,22 +411,18 @@ public class F : Form {
 
         // Остановить движок
         ser.Stop();
-        ser = null;
 
         // Отобразить значок выключения
         this.StopIcon();
 
         // Закрыть все процессы интерпретатора
-        if(cgia) for(i=i0; i<db; i++) if(cgib[i]>b0)
-                 try{ proc[i].StandardInput.WriteLine(string.Empty); }
-                 catch(Exception) { }
+        if(cgia) for(i=i0; i<it; i++) if(cgib[i]>b0) cgiQuit(i);
         proc = null;
         cgib = null;
         cgi = null;
 
         // Закрыто все процессы VFP
-        if(vfpa != null) for(i=i0; i<db; i++) if(vfpb[i]>i0)
-                try{ vfp[i].Quit(); }catch(Exception){ }
+        if(vfpa != null) for(i=i0; i<db; i++) if(vfpb[i]>b0) vfpQuit(i);
         vfpb = null;
         vfpa = null;
         vfpi = null;
@@ -460,13 +430,16 @@ public class F : Form {
     
         if(log9>i0) log("\tThe "+hs+" is stopped.");
       }
-      if(!notQuit) {
-        if(nIcon != null) {
-          nIcon.Visible = false;
-          nIcon.Dispose();
-        }
-        this.Close();
-      }
+      if(!notQuit) this.Close();
+    }
+
+    static void cgiQuit(int i) {
+       try{ proc[i].StandardInput.WriteLine(string.Empty); }
+       catch(Exception) { }
+    }
+
+    static void vfpQuit(int i) {
+       try{ vfp[i].Quit(); }catch(Exception){ }
     }
 
     public static string ltri(ref string x){
@@ -580,15 +553,12 @@ public class F : Form {
     }
 
     // Запуск скрипта initCGI
-    public static async Task<bool> start_CGI(int i) {
+    public static bool start_CGI(int i, byte b=b2) {
       bool l;
-
-      // Чтобы была асинхронность
-      Task t = Task.Run(() => { cgib[i] = b2; });
 
       // Проверим работает ли этот процесс
       try {
-        l = proc[i].HasExited;
+        l = proc[i] == null || proc[i].HasExited;
       } catch(Exception) {
         l = true;
       }
@@ -605,40 +575,44 @@ public class F : Form {
         cgi[i].Arguments = Args+" \""+DocumentRoot+initCGI+Ext+"\"";
         try {
           proc[i] = Process.Start(cgi[i]);
+          cgib[i] = b;
           l = false;
         } catch(Exception) { }
       }
-      await t;
       return l;
     }
 
     // Подготовим CGI к новым заданиям
-    public static async Task clear_cgi(int m) {
-      cgib[m] = await start_CGI(m)? b0: b1;
+    public static void clear_cgi(int m) {
+      if(proc[m] != null) {
+        try { proc[m].Dispose(); } catch { }
+        proc[m] = null;
+      }
+      cgib[m] = start_CGI(m)? b0: b1;
       freeCGI.Push(m);
     }
 
     // Запуск VFP
-    public static async Task<bool> start_VFP(int m) {
-
-      // Чтобы была асинхронность
-      Task t = Task.Run(() => { vfpb[m] = b2; });
-
-      bool l = start_VFP2(m);
-      await t;
-      return l;
+    public static bool start_VFP(int m, byte b=b2) {
+      if(start_VFP2(m)) {
+        return true;
+      } else {
+        vfpb[m] = b;
+        return false;
+      }
     }
 
     public static bool start_VFP2(int m) {
       if(vfpb[m]!=b0) {
         try {
-          start_VFP3(m);
+          _= vfp[m].Name;
           return false;
-        } catch(Exception) { }
+        } catch(Exception) {
+          killVFP(m);
+        }
       }
-
+      
       try {
-        delVFP(ref m);
         vfp[m]= Activator.CreateInstance(vfpa);
         vfpi[m]= vfp[m].ProcessID;
         start_VFP3(m);
@@ -654,7 +628,7 @@ public class F : Form {
     }
 
     // Подготовим VFP к новым заданиям
-    public static async void clear_prg(int m) {
+    public static void clear_prg(int m) {
       try{
         if(VFPclr){
           vfp[m].DoCmd("do ("+CLR+")");
@@ -666,50 +640,16 @@ public class F : Form {
           vfp[m].DoCmd("clea all");
           vfp[m].DoCmd("clos all");
         }
-        start_VFP2(m);
-        vfpb[m]=b1;
+        start_VFP3(m);
       }catch(Exception){
+        vfpQuit(m);
         vfpb[m]=b0;
       }
       if(vfpb[m]==b0) {
-        try { vfp[m].Quit(); } catch(Exception) { }
-        await start_VFP(m);
-        vfpb[m]=b1;
+        killVFP(m);
+        _= start_VFP(m,b1);
       }
       freeVFP.Push(m);
-    }
-
-    // Освободить индекс клиента и сделать его доступным
-    public static void freeSession(int j, string Protocol) {
-      switch (Protocol){
-      case "https":
-        free(ref j);
-        break;
-      case "http":
-        free1(ref j);
-        break;
-      default:
-        if(j<st2) {
-          free(ref j);
-        }else{
-          free1(ref j);
-        }
-        break;
-      }
-    }
-
-    private static void free(ref int j) {
-      try {
-        freeClientsPool.Push(j);
-        maxNumberAcceptedClients.Release();
-      } catch(Exception) { }
-    }
-
-    private static void free1(ref int j) {
-      try {
-        freeClientsPool1.Push(j);
-        maxNumberAcceptedClients1.Release();
-      } catch(Exception) { }
     }
 
     // Аварийно снимаем COM-процесс
@@ -720,11 +660,14 @@ public class F : Form {
     }
 
     static void delVFP(ref int m) {
-      if(Marshal.IsComObject(vfp[m]))
-         Marshal.FinalReleaseComObject(vfp[m]);
-      vfp[m]= null;
-      GC.Collect();
-      GC.WaitForPendingFinalizers();
+      if(vfp[m] != null) {
+        try {
+          if(Marshal.IsComObject(vfp[m]))
+           Marshal.FinalReleaseComObject(vfp[m]);
+        } catch (Exception) { } finally {
+          vfp[m] = null;
+        }
+      }
     }
 
     // Выполнить команду "schtasks"
@@ -765,12 +708,11 @@ public class F : Form {
     }
 
     bool toArg(string[] args) {
-      i++;
-      return i<args.Length;
+      return ++i<args.Length;
     }
 
     private bool getArgs(String[] args){
-      const int b9=131072, db9=1000, p9=65535, post9=33554432, b0=512, log0=80, t9=20;
+      const int b9=131072, p9=65535, post9=33554432, b0=512, log0=80, s9=1000, t9=20;
       string tx=string.Empty, ts=string.Empty, cA="Arguments>", fn=hn+".xml";
       bool l=true;
       int k1;
@@ -891,7 +833,25 @@ public class F : Form {
         case "-n":
           if(toArg(args)){
             k=valInt(args[i]);
-            if(k >= i0 && k <= db9) db=k;
+            if(k >= i0 && k <= s9) it=k;
+          }            
+          break;
+        case "-n1":
+          if(toArg(args)){
+            k=valInt(args[i]);
+            if(k >= i0 && k <= s9) it1=k;
+          }            
+          break;
+        case "-f":
+          if(toArg(args)){
+            k=valInt(args[i]);
+            if(k >= i0 && k <= s9) db=k;
+          }            
+          break;
+        case "-f1":
+          if(toArg(args)){
+            k=valInt(args[i]);
+            if(k >= i0 && k <= s9) db1=k;
           }            
           break;
         case "-w":
@@ -993,9 +953,14 @@ Parameters:                                                                  Val
      -s1     Allowed number of simultaneously processed requests per IP.         "+st1.ToString()+@"
      -w      Allowed time to reserve an open channel for request that did not    "+(tw/1000).ToString()+@"
              started. From 1 to "+t9.ToString()+@" seconds.
-     -n      Maximum number of dynamically running interpreters or MS VFP        "+db.ToString()+@"
-             instances. Processes are launched as needed depending on the
-             number of concurrent requests. Maximum value is "+db9.ToString()+@".
+     -n      Maximum number of dynamically running interpreters. Processes       "+it.ToString()+@"
+             are launched as needed depending on the number of concurrent
+             requests. Maximum value is "+s9.ToString()+@".
+     -n1     The initial number of interpreters to pre-start.                    "+it1.ToString()+@"
+     -f      Maximum number of dynamically launched MS Visual FoxPro             "+db.ToString()+@"
+             instances. Visual FoxPro COMs are created as needed, depending
+             on the number of concurrent requests. The maximum value is "+s9.ToString()+@".
+     -f1     The initial number of pre-created Visual FoxPro COMs.               "+db1.ToString()+@"
      -log    Size of the query log in rows. The log consists of two              "+log9.ToString()+@"
              interleaved versions https.net.x.log and https.net.y.log. If the
              size is set to less than "+log0.ToString()+@", then the log is not kept.

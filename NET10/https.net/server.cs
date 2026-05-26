@@ -1,13 +1,13 @@
-//!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-//!!                                                     !!
-//!!   https.net сервер на C#.     Автор: A.Б.Корниенко  !!
-//!!   Серверный движок            версия от 20.05.2025  !!
-//!!                                                     !!
-//!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+//!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+//!!                                                      !!
+//!!   https.net сервер на C#.  Авторы: A.Б. Корниенко    !!
+//!!                                    ИИ от google.com  !!
+//!!   Серверный движок         версия  от 26.05.2026     !!
+//!!                                                      !!
+//!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 using System;
 using System.Net;
-using System.Threading;
 using System.Net.Sockets;
 using System.Threading.Tasks;
 using System.Collections.Concurrent;
@@ -15,34 +15,46 @@ using System.Collections.Concurrent;
 namespace https1 {
 
   class Server {
-    const string mess1="\tThe number of running tasks via ",
-                 mess2=" has exceeded the allowed value of ",
-                 http="http", https="https";
+    ConcurrentStack<int> freeClientsPool;
     Socket listenSocket, listenSocket1;
-    int stAll;
-    Task[] t;         // Запуск сессий
+    Task tSer, tSer1;
 
     public bool Start(IPEndPoint ep, IPEndPoint ep1) {
-      stAll = F.st + F.st2;
-      t = new Task[stAll];
+      listenSocket1 = CreateListenSocket(ep1, in F.port1);
+      listenSocket = CreateListenSocket(ep, in F.port);
+      if(listenSocket1 == null) F.port1 = F.i0;
+      if(listenSocket == null) F.port = F.i0;
+      if(F.port==F.i0 && F.port1==F.i0) {
+         return false;
+      } else {
 
-      listenSocket1 = CreateListenSocket(ep1, F.port1);
-      listenSocket = CreateListenSocket(ep, F.port);
-      if(!(listenSocket1 != null)) F.port1 = F.i0;
-      if(!(listenSocket != null)) F.port = F.i0;
+        // Запуск чтения сокетов
+        if(F.port>F.i0 || F.port1>F.i0) {
+          freeClientsPool = new ConcurrentStack<int>();
+          for (int i=F.st; i>F.i0; i--) freeClientsPool.Push(i);
+          if(F.port>F.i0) tSer = Task.Run(() => httpsAcceptAsync());
+          if(F.port1>F.i0) tSer1 = Task.Run(() => httpAcceptAsync());
+        }
 
-      //Console.WriteLine("Press any key to terminate the server process....");
-      //Console.ReadKey();
+        //Console.WriteLine("Press any key to terminate the server process....");
+        //Console.ReadKey();
 
-      return listenSocket != null || listenSocket1 != null;
+        return true;
+      }
     }
 
-    private Socket CreateListenSocket(IPEndPoint ep, int port) {
+    Socket CreateListenSocket(IPEndPoint ep, in int port) {
       Socket s = null;
       if(port>F.i0) {
         // create the socket which listens for incoming connections
         s = new Socket(ep.AddressFamily, SocketType.Stream, ProtocolType.Tcp) {
                 NoDelay = true };            // Мгновенная отправка
+
+        // КРИТИЧЕСКИ ВАЖНО ДЛЯ ВЫСОКОЙ НАГРУЗКИ И ТЕСТОВ F5:
+        // Разрешаем операционной системе мгновенно переиспользовать порт и адрес,
+        // игнорируя системные задержки TIME_WAIT от предыдущих запросов браузера.
+        s.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
+
         try { s.Bind(ep); } catch (Exception) { s.Close(); s = null; }
 
         // start the server with a listen backlog of F.qu connections
@@ -51,52 +63,58 @@ namespace https1 {
       return s;
     }
 
-    // Остановить сервер
-    public void Stop() {
-
-       // Закрыть все сессии
-       for (int i=0; i<F.session.Length; i++) {
-         if (t[i] != null) F.session[i].Stop();
-       }
-
-       // Закрыть прослушивание
-       CloseSocket(listenSocket1, F.port1);
-       CloseSocket(listenSocket, F.port);
-    }
-
-    private void CloseSocket(Socket s, int port) {
-      if(port>0 && s != null) {
-         try { s.Shutdown(SocketShutdown.Both); } catch (Exception) { }
-         s.Close();
+    // Головной модуль запуска задачи https-сервера
+    public async Task httpsAcceptAsync() {
+      Socket client;
+      while (F.notExit) {
+        try { client = await listenSocket.AcceptAsync(); }
+        catch (ObjectDisposedException) { break; }
+        _ = Task.Run(() => toSession(client, F.https));
       }
     }
 
-    // Головной модуль запуска задачи https-сервера
-    public void StartAccept() {
-       while (F.notExit) {
-          F.maxNumberAcceptedClients.WaitOne();
-          if (F.notExit) {
-            if(F.freeClientsPool.TryPop(out int j)) {
-              t[j] = F.session[j].AcceptAsync(listenSocket.AcceptAsync(),https);
-            } else {
-              F.log2(mess1+https+mess2+F.st+".");
-            }
-          }
-       }
+    // Головной модуль запуска задачи http-сервера
+    public async Task httpAcceptAsync() {
+      Socket client;
+      while (F.notExit) {
+        try { client = await listenSocket1.AcceptAsync(); }
+        catch (ObjectDisposedException) { break; }
+        _ = Task.Run(() => toSession(client, F.http));
+      }
     }
 
-    // Головной модуль запуска задачи http-сервера
-    public void StartAccept1() {
-       while (F.notExit) {
-          F.maxNumberAcceptedClients1.WaitOne();
-          if (F.notExit) {
-            if(F.freeClientsPool1.TryPop(out int j)) {
-              t[j] = F.session[j].AcceptAsync(listenSocket1.AcceptAsync(),http);
-            } else {
-              F.log2(mess1+http+mess2+F.st2+".");
-            }
-          }
-       }
+    async Task toSession(Socket s, string Prot) {
+      if (s == null) return;
+
+      // Отсекаем мертвые души сразу
+      if (s.Poll(F.i0,SelectMode.SelectRead) && s.Available == F.i0) {
+         s.Close();
+         return; 
+      }
+
+      if(freeClientsPool.TryPop(out int j)) {
+         try {
+           await F.session[j].Start(s, Prot);
+         }
+         finally {
+           s.Close();
+           freeClientsPool.Push(j);
+         }
+      } else {
+         s.Close();
+         F.log2($"\tThe number of running tasks via {Prot} has exceeded the allowed value of {F.st}.");
+      }
+    }
+
+    // Остановить сервер
+    public void Stop() {
+       // Закрыть прослушивание
+       CloseSocket(listenSocket1, in F.port1);
+       CloseSocket(listenSocket, in F.port);
+    }
+
+    void CloseSocket(Socket s, in int port) {
+      if(port>0 && s != null) s.Close();
     }
 
   }
