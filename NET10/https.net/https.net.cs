@@ -1,7 +1,7 @@
 //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 //!!                                                     !!
 //!!   https.net сервер на C#.    Автор: A.Б.Корниенко   !!
-//!!   Головной блок              версия от 26.05.2026   !!
+//!!   Головной блок              версия от 28.05.2026   !!
 //!!                                                     !!
 //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
@@ -18,6 +18,7 @@ using System.Net.Security;
 using System.Windows.Forms;
 using System.ComponentModel;
 using System.Threading.Tasks;
+using System.Threading.Channels;
 using System.Collections.Concurrent;
 using System.Runtime.InteropServices;
 using System.Security.Authentication;
@@ -29,6 +30,7 @@ public class F : Form {
     ToolStripMenuItem menuS = new ToolStripMenuItem();
     ToolStripMenuItem menuR = new ToolStripMenuItem();
     ContextMenuStrip menu = new ContextMenuStrip();
+    static readonly object logFlush = new object();
     public static ConcurrentStack<int> freeCGI;
     public static ConcurrentStack<int> freeVFP;
     IContainer conta = new Container();
@@ -38,7 +40,7 @@ public class F : Form {
     string[] param;
 
     private const string hn="https.net";
-    private const string hs=hn+" server";
+    private const string hs=hn+" server", fn=hn+".xml";
     public const string CL="Content-Length",CT="Content-Type",CD="Content-Disposition",
                  DI="index.html", stopIconText= hs+" is stopped", initCGI= "initcgi.",
                  CC="Cache-Control: public, max-age=2300000\r\n", H1= "HTTP/1.1 ",
@@ -46,7 +48,7 @@ public class F : Form {
                  logX=hn+".x.log", logY=hn+".y.log", CT_T=CT+": text/plain\r\n", 
                  https="https", http="http",
            //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-                 ver="version 2.0.2", verD="May 2026";        //!!
+                 ver="version 2.0.3", verD="May 2026";        //!!
            //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     public const  byte b0=0, b1=1, b2=2, b3=3, b10=10, b13=13;
     public const  int i0=0, i1=1, i2=2, i3=3, i4=4, i8=1500000, i9=2147483647;
@@ -54,6 +56,8 @@ public class F : Form {
                   db, db1, it, it1, log9, st1, qu1, tw, iIP, iIP1, nClients, logi=i0;
     public static string IP, IP1, DocumentRoot, Folder=Thread.GetDomain().BaseDirectory,
                   DirectoryIndex, Proc, Args, Ext, logZ=string.Empty, DirectorySessions;
+    static readonly Channel<string> logQueue = Channel.CreateUnbounded<string>(
+                  new UnboundedChannelOptions { SingleReader = true });
     private static string Fullexe = Folder+hn+".exe";
     public static bool notExit=false, notQuit=true, cgia, VFP9, VFPclr;
     public static Icon ico = Icon.ExtractAssociatedIcon(Fullexe);
@@ -68,6 +72,7 @@ public class F : Form {
     public static Type vfpa = null;
     public static Process[] proc;
     public static int[] vfpi;
+    int a9=1000, s9=32767;
     string CerFile;
 
     protected override void Dispose( bool disposing ) {
@@ -138,6 +143,7 @@ public class F : Form {
     public F(string[] args) {
       this.WindowState = FormWindowState.Minimized;
       this.FormBorderStyle = FormBorderStyle.FixedToolWindow;
+      InitLogging();   // Включаем журнал
       this.FormClosing += Form_Close;
       this.ShowInTaskbar = false;
       this.Shown += Form_Shown;
@@ -197,11 +203,12 @@ public class F : Form {
       // Анонимная функция перехвата и вывода ошибки
       AppDomain.CurrentDomain.UnhandledException += (sender, eventArgs) =>
       {
-        if(log9>i0) log2("\t"+((Exception)eventArgs.ExceptionObject).ToString());
+        log("\t"+((Exception)eventArgs.ExceptionObject).ToString());
         StopServer();
       };
 
       param = (string[])args.Clone();
+      ThreadPool.GetMaxThreads(out s9, out a9);
       RunServer(args);
     }
 
@@ -248,6 +255,7 @@ public class F : Form {
 
       if(getArgs(args)){
         if(notQuit) {
+          InitLogging2();
           if(Args.Length>i0) Args+=" ";
 
           // Создать объект cert
@@ -256,7 +264,7 @@ public class F : Form {
             if(!File.Exists(CerFile)) CerFile=string.Empty;
           }
           if(CerFile==string.Empty) {
-            if(log9>i0) log2("\tCertificate was not found.");
+            log("\tCertificate was not found.");
             port = i0;
           } else {
             try {
@@ -267,13 +275,12 @@ public class F : Form {
                      EnabledSslProtocols = SslProtocols.Tls13,
                      ClientCertificateRequired = false };
             } catch(Exception e) {
-              if(log9>i0) log2("\tCertificate error: "+e.Message);
+              log("\tCertificate error: "+e.Message);
               cert = null;
             }
             if(!(cert!=null)) port=i0;
           }
           if(port>i0 || port1>i0) {
-            if(st<i2) st= i2;
 
             // Разделить буфер для ускорения чтения
             bu4 = bu/i4;
@@ -285,14 +292,18 @@ public class F : Form {
 
             // Создать объекты сессий предварительно очистив сессии от предыдущих запусков
             nClients = st;     // Начальное число соединений
-            ThreadPool.SetMinThreads(nClients,nClients);
+            ThreadPool.SetMinThreads(nClients,a9);
             session = new Session[nClients];
             try{
-              Parallel.For(i0,nClients,j => { session[j] = new Session(j); });
+              ParallelOptions options = new ParallelOptions() {
+                 MaxDegreeOfParallelism = Environment.ProcessorCount * 2 
+              };
+              Parallel.For(i0, nClients, options, j => { 
+                 session[j] = new Session(j); 
+              });
               notExit=true;
             }catch(Exception){
-              if(log9>i0)
-                 log("\tThere were problems when creating threads. Try updating Windows.");
+              log("\tThere were problems when creating threads. Try updating Windows.");
             }
           }
         }
@@ -317,9 +328,8 @@ public class F : Form {
             for (i=it; i>i0; ) freeCGI.Push(--i);
 
           } else {
-            if(log9>i0)
-               log("\tThe \""+Proc+("\" interpreter or\r\n".PadRight(41))+
-                   "\tthe \""+DocumentRoot+initCGI+Ext+"\" script could not be run.");
+            log("\tThe \""+Proc+("\" interpreter or\r\n".PadRight(41))+
+                "\tthe \""+DocumentRoot+initCGI+Ext+"\" script could not be run.");
           }
 
           // Запустить и настроить экземпляр VFP
@@ -338,9 +348,8 @@ public class F : Form {
             if(vfpa!=null){
               VFP9= vfp[i0].Eval("sys(17)")=="Pentium";
               if(start_VFP2(i0)) {
-                if(log9>i0)
-                   log("\tCOM server 'VFP.memlib"+(VFP9?"32'":"'")+
-                       " is not registered in Windows registry.");
+                log("\tCOM server 'VFP.memlib"+(VFP9?"32'":"'")+
+                    " is not registered in Windows registry.");
                 vfpa= null;
               }
             }
@@ -376,11 +385,9 @@ public class F : Form {
             // Отобразить значок работы
             nIcon.Icon = ico;  // SystemIcons.Shield;
             nIcon.Text = hs+" is running";
-            if(log9>i0) {
-              log("\tThe "+hs+" "+ver+" is running.\r\n"+"\t".PadLeft(24)+
-                  ((port>0 && port1>0)?"Both https- and http" :
-                  (port>0? https:http))+"-sessions are available.");
-            }
+            log("\tThe "+hs+" "+ver+" is running.\r\n"+"\t".PadLeft(24)+
+                ((port>0 && port1>0)?"Both https- and http" :
+                (port>0? https:http))+"-sessions are available.");
 
           } else {
             notExit = false;   // Отметить для возможности снятия, т.к. сервер запущен
@@ -428,7 +435,7 @@ public class F : Form {
         vfpi = null;
         vfp = null;
     
-        if(log9>i0) log("\tThe "+hs+" is stopped.");
+        log("\tThe "+stopIconText+".");
       }
       if(!notQuit) this.Close();
     }
@@ -498,12 +505,47 @@ public class F : Form {
       return z;
     }
 
-    public static void log(object x){
+
+
+
+
+
+
+
+    static void InitLogging() {
+      lock (logFlush) {
+        if(logFS == null) {
+           logZ = (File.GetLastWriteTime(logX) <= File.GetLastWriteTime(logY)) ? logX : logY;
+           log1();
+        }
+      }
+    }
+
+    public static void log(object x) {
       // Добавить сообщение в журнал с чередующимися версиями.
       // Сначала писать в X, затем в Y, затем снова в X и т.д.
 
+      lock (logFlush) {
+        try {
+
+          // Проверка размера файла (сработает, только если log9 уже настроен)
+          if(log9 > i0 && logi >= log9) {
+             logA();
+          } else if (log9 > i0) {
+             logi++;
+          }
+
+          logB(x);
+          logSW?.Flush();
+          logFS?.Flush();
+        } catch (ObjectDisposedException) {
+          log9 = i0;
+        }
+      }
+
+
       // Нужно ли начать запись в другой журнал?
-      if(logi>=log9 && logFS!=null){
+/*      if(logi>=log9 && logFS!=null){
         Interlocked.Exchange(ref logi,i1);
         logZ = (logY==logZ)? logX:logY;
         logSW.Close();
@@ -528,6 +570,75 @@ public class F : Form {
         log9=i0;
       }catch(Exception){
         Thread.Sleep(23); log2(x+" *");
+      }*/
+    }
+
+
+    // 2. ВТОРАЯ ИНИЦИАЛИЗАЦИЯ (Вызывать, когда считали конфиг и уже известно значение log9)
+    // Запускает фоновый поток записи и таймер сброса для высоконагруженного F.log2()
+    static void InitLogging2() {
+
+      // Поток для обработки очереди из log2 (BelowNormal)
+      Thread worker = new Thread(WriteLoop) {
+          IsBackground = true,
+          Priority = ThreadPriority.BelowNormal
+      };
+      worker.Start();
+
+      // Поток таймера на 2 секунды для Far Manager (Lowest)
+      Thread flushTimerThread = new Thread(FlushLoop) {
+          IsBackground = true,
+          Priority = ThreadPriority.Lowest
+      };
+      flushTimerThread.Start();
+    }
+
+    // Фоновый обработчик очереди для log2
+    static void WriteLoop() {
+      var reader = logQueue.Reader;
+      while (true) {
+        try {
+          // Пытаемся ждать новые логи.
+          if (!reader.WaitToReadAsync().AsTask().GetAwaiter().GetResult()) break;
+        } 
+        catch (Exception) {
+          break;             // Если канал закроют при выходе
+        }
+
+        while (reader.TryRead(out var x)) {
+          lock (logFlush) {
+            try {
+              if(logi >= log9 && logFS != null) {
+                 logA();
+              } else {
+                 logi++;
+              }
+              if(logFS == null) {
+                 logZ = (File.GetLastWriteTime(logX) <= File.GetLastWriteTime(logY)) ? logX : logY;
+                 log1();
+              }
+              logB(x);
+            } catch (ObjectDisposedException) {
+              log9 = i0;
+            }
+          }
+        }
+      }
+    }
+
+    // Таймер сброса буфера на диск раз в 2 секунды
+    static void FlushLoop() {
+      using var timer = new PeriodicTimer(TimeSpan.FromSeconds(2));
+      while (timer.WaitForNextTickAsync().AsTask().GetAwaiter().GetResult()) {
+        if(log9 == i0) break;
+        try {
+          lock (logFlush) {
+            if(logSW != null && logFS != null) {
+               logSW.Flush();
+               logFS.Flush();
+            }
+          }
+        } catch { }
       }
     }
 
@@ -538,12 +649,34 @@ public class F : Form {
       Console.SetOut(logSW);
     }
 
-    public static void log2(string x){
-      if(log9>i0){
-        Thread log2 = new Thread(log);
-        log2.Priority = ThreadPriority.BelowNormal;
-        log2.Start(x);
-      }
+    internal static void logA(){
+      logi = i1;
+      logZ = (logY == logZ) ? logX : logY;
+      logSW?.Close();
+      logFS?.Close();
+      log1();
+    }
+
+    internal static void logB(object x){
+      Console.WriteLine($"{DateTime.Now:dd.MM.yyyy HH:mm:ss.fff}{x ?? "null"}");
+    }
+
+//    public static void log2(string x){
+//      if(log9>i0){
+
+    // МЕТОД 2: Высоконагруженный фоновый логгер.
+    public static void log2(object x) {
+      if(log9>i0) logQueue.Writer.TryWrite(x?.ToString() ?? "null");
+
+
+
+
+
+
+//        Thread log2 = new Thread(log);
+//        log2.Priority = ThreadPriority.BelowNormal;
+//        log2.Start(x);
+//      }
     }
 
     public static int valInt(string x){
@@ -671,7 +804,7 @@ public class F : Form {
     }
 
     // Выполнить команду "schtasks"
-    private bool schtasks(ref string par){
+    bool schtasks(ref string par){
       bool ret;
       string output;
       byte[] buf = new byte[100];
@@ -711,11 +844,11 @@ public class F : Form {
       return ++i<args.Length;
     }
 
-    private bool getArgs(String[] args){
-      const int b9=131072, p9=65535, post9=33554432, b0=512, log0=80, s9=1000, t9=20;
-      string tx=string.Empty, ts=string.Empty, cA="Arguments>", fn=hn+".xml";
+    bool getArgs(String[] args){
+      const int b9=131072, p9=65535, post9=33554432, b0=512, log0=80;
+      string tx=string.Empty, ts=string.Empty, cA="Arguments>";
+      int k1, t9=10;
       bool l=true;
-      int k1;
 
       // Если введён ключ вида /? или -? или /help или -help
       if (args.Length==i1) l = args[i0].Length>9;
@@ -821,7 +954,7 @@ public class F : Form {
         case "-s":
           if(toArg(args)){
             k=valInt(args[i]);
-            st= k>i3? (k<=s9? k : s9) : i4;
+            st= k>i1? (k<=s9? k : s9) : i2;
           }            
           break;
         case "-s1":
@@ -908,19 +1041,26 @@ public class F : Form {
         }
       }
 
-      if(ts.Length>i0) schtasks(ref ts);
+      // Корректировка некоторых параметров
+      k= (int)(st*1.2);
+      if(qu<k) qu= k;
 
-      textBox1 = new TextBox()
-      {
-        Location = new Point(5,5),
-        Size = new Size(this.ClientSize.Width-10,this.ClientSize.Height-10)
-      };
-      textBox1.TabStop = false;
-      textBox1.ReadOnly = true;
-      textBox1.Multiline = true;
-      textBox1.ScrollBars = ScrollBars.Vertical;
-      textBox1.Font = new Font("Consolas", 13);
-      textBox1.WordWrap = true;
+      if(ts.Length>i0) schtasks(ref ts);
+      if(!Controls.Contains(textBox1)) {
+        textBox1 = new TextBox()
+        {
+          Location = new Point(5,5),
+          Size = new Size(this.ClientSize.Width-10,this.ClientSize.Height-10)
+        };
+        textBox1.TabStop = false;
+        textBox1.ReadOnly = true;
+        textBox1.WordWrap = true;
+        textBox1.Multiline = true;
+        textBox1.Font = new Font("Consolas", 13);
+        textBox1.ScrollBars = ScrollBars.Vertical;
+        Controls.Add(textBox1);
+      }
+
       textBox1.Text = "Multithreaded "+hs+" "+ver+", (C) a.kornienko.ru "+verD+@".
 
 USAGE:
@@ -978,8 +1118,6 @@ Parameters:                                                                  Val
              the full path to the executable file.
      -args   Additional parameters of the handler startup command line.
      -ext    Extension of the script files.                                      "+Ext;
-
-      Controls.Add(textBox1);
 
       return l;
     }

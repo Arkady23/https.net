@@ -1,7 +1,7 @@
 //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 //!!                                                         !!
 //!!    https.net сервер на C#.      Автор: A.Б.Корниенко    !!
-//!!    class Session                версия от 26.05.2026    !!
+//!!    class Session                версия от 28.05.2026    !!
 //!!                                                         !!
 //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
@@ -100,7 +100,8 @@ namespace https2 {
       IP = point.Address.ToString();
       Protocol = Prot;
       if((F.iIP>F.st1 && F.IP==IP) || (F.iIP1>F.qu1 && F.IP1==IP)) {
-        return;
+        client.Close();
+        F.log2($"\tIP {IP} blocked.");
       } else {
         Interlocked.Increment(ref F.nClients);
         if(F.IP1==IP) Interlocked.Increment(ref F.iIP1);
@@ -151,6 +152,7 @@ namespace https2 {
 
           if(eof<F.i0) {
             stream.Close();
+            client.Close();
             Init();
             return;
           }
@@ -203,12 +205,12 @@ namespace https2 {
           }
           stream.Close();
         }
+        client.Close();
 
         if(res.Length>F.i1 && F.log9>F.i0) {
           n = DateTime.UtcNow.Subtract(dt1).TotalMilliseconds;
           F.log2("/"+(n>9999?"****" : n.ToString("0000"))+" "+IP+" "+j+"\t"+res);
         }
-
         Init();
       }
     }
