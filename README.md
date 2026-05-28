@@ -45,17 +45,17 @@ Parameters:                                                                  Val
      -q      Allowable number of requests in the queue.                          100
      -q1     Allowed number of requests in the queue per IP.                     8
      -s      Number of requests being processed at the same time. Maximum        100
-             value is 1000.
+             value is 32767.
      -s1     Allowed number of simultaneously processed requests per IP.         16
      -w      Allowed time to reserve an open channel for request that did not    5
              started. From 1 to 20 seconds.
      -n      Maximum number of dynamically running interpreters. Processes       16
              are launched as needed depending on the number of concurrent
-             requests. Maximum value is 1000.
+             requests. Maximum value is 32767.
      -n1     The initial number of interpreters to pre-start.                    2
      -f      Maximum number of dynamically launched MS Visual FoxPro             16
              instances. Visual FoxPro COMs are created as needed, depending
-             on the number of concurrent requests. The maximum value is 1000.
+             on the number of concurrent requests. The maximum value is 32767.
      -f1     The initial number of pre-created Visual FoxPro COMs.               2
      -log    Size of the query log in rows. The log consists of two              10000
              interleaved versions http.net.x.log and http.net.y.log. If the
