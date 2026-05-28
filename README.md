@@ -16,7 +16,7 @@ The "-c filename.pfx" parameter specifies the name of the file containing your s
 Prg scripts are processed using COM technology and VFP 9/10(Advanced) DBMS, not CGI. COM objects are created as requests from clients are executed. By default, visual error output in VFP 9/10(Advanced) DBMS is disabled. In case of an error in prg, a description of this error is returned to the script in the ERROR_MESS variable. Below is an example of a prg file and the result of its work. And also the result of working with a similar prg file, but with an error (the last line break ";" is missing).
 ```PowerShell
 PS D:\> D:\work\httpd\https.net.exe /?
-Multithreaded http.net server version 2.0.2, (C) a.kornienko.ru May 2026.
+Multithreaded http.net server version 2.0.3, (C) a.kornienko.ru May 2026.
 
 USAGE:
     https.net [Parameter1 Value1] [Parameter2 Value2] ...
@@ -294,3 +294,4 @@ If there is an error in the prg file:
 server.cs практически полностью переписан ИИ google.com. По утверждению ИИ теперь сервер стал действительно очень производительным! Добавлены
 параметры f, f1 и n1. Теперь максимальное число процессов CGI и процессов vfp9.exe или vfpa.exe задаётся отдельными параметрами n и f
 соответственно. Параметры n1 и f1 задают число процессов запускаемых при старте сервера. Ранее запускалось по одному процессу CGI и VFP. Сейчас по умолчанию n1=2 и f1=2, а максимальное число процессов CGI — 16, максимальное число процессов VFP по умолчанию тоже 16. Разделение этих параметров позаолит также совсем отключить CGI или VFP, установив максимальное число в 0. Теоретически эти значения можно увеличивать до 1000, но это связано с наличием свободной памяти и аппаратной мощности вычислительного оборудования.  
+2.0.3 May 2026. Серьезные изменения во всех модулях. Много быстрей стал движок. Кардинально переделан механизм логирования. Произведено тестирование сервера. Высочайшие показатели для слабого ПК с двумя ядрами и 8Гб ОП!  
