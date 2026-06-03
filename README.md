@@ -53,10 +53,10 @@ Parameters:                                                                  Val
              are launched as needed depending on the number of concurrent
              requests. Maximum value is 32767.
      -n1     The initial number of interpreters to pre-start.                    2
-     -f      Maximum number of dynamically launched MS Visual FoxPro             16
-             instances. Visual FoxPro COMs are created as needed, depending
-             on the number of concurrent requests. The maximum value is 32767.
-     -f1     The initial number of pre-created Visual FoxPro COMs.               2
+     -f      Maximum number of dynamically launched VFoxPro.exe instances.       16
+             VFoxPro.exe COMs are created as needed, depending on the number
+             of concurrent requests. The maximum value is 32767.
+     -f1     The initial number of pre-created VFoxPro.exe COMs.                 2
      -log    Size of the query log in rows. The log consists of two              10000
              interleaved versions http.net.x.log and http.net.y.log. If the
              size is set to less than 80, then the log is not kept.
