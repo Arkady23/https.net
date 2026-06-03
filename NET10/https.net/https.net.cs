@@ -1,7 +1,7 @@
 //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 //!!                                                     !!
 //!!   https.net сервер на C#.    Автор: A.Б.Корниенко   !!
-//!!   Головной блок              версия от 02.06.2026   !!
+//!!   Головной блок              версия от 03.06.2026   !!
 //!!                                                     !!
 //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
@@ -685,9 +685,12 @@ public class F : Form {
     // Подготовим VFP к новым заданиям
     public static void clear_prg(int m) {
       try{
-        vfp[m].clearPRG(VFPclr);
+        if(vfp[m].clearPRG(VFPclr)) {
+          vfpQuit(in m);
+          _= start_VFP(m,b1);
+        }
       }catch(Exception){
-        vfpQuit(m);
+        vfpQuit(in m);
         vfpb[m]=b0;
       }
       if(vfpb[m]==b0) {
