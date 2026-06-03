@@ -13,7 +13,7 @@ By default, the https.net server will process Visual FoxPro and Python scripts. 
 
 The "-c filename.pfx" parameter specifies the name of the file containing your site's certificate. You can obtain such a file for free, for example, using the wacs.exe console program from the official website win-acme.com. To obtain a certificate for a second-level domain and all its third-level subdomains, you must specify two hosts in the wacs.exe responses, for example, kornienko.ru and *.kornienko.ru. In this case, you will need to confirm twice (for each host separately) that you are the owner/administrator of these hosts using DNS-1. If confirmation is successful, you will receive a single certificate file for both hosts with encryption keys. You do not need to set a certificate password; the current version of the servers does not support certificate passwords.  
 
-Prg scripts are processed using COM technology and VFP 9/10(Advanced) DBMS, not CGI. COM objects are created as requests from clients are executed. By default, visual error output in VFP 9/10(Advanced) DBMS is disabled. In case of an error in prg, a description of this error is returned to the script in the ERROR_MESS variable. Below is an example of a prg file and the result of its work. And also the result of working with a similar prg file, but with an error (the last line break ";" is missing).
+Prg scripts are processed using COM technology and the included VFoxPro.exe repeater (32-bit), not CGI. COM objects are created as client requests are processed. If a Prg error occurs, a description of the error is returned to the script in the ERROR_MESS variable. Below are examples of a test py file, a Prg file, and the output from the test. Also included is the output from a similar Prg file, but with an error (the last line break ";" is missing).
 ```PowerShell
 PS D:\> D:\work\httpd\https.net.exe /?
 Multithreaded http.net server version 2.1.0, (C) a.kornienko.ru June 2026.
@@ -86,7 +86,7 @@ Parameters:                                                                  Val
 
 В параметре "-c имя.файла.pfx" указывается имя файла с сертификатом вашего сайта. Получить такой файл бесплптно можно, например, с помощью консольной программы wacs.exe с официального сайта win-acme.com. Для того чтобы получить сертификат на домен второго уровня и все его поддомены третих уровней, в ответах к wacs.exe нужно указать два хоста, например, kornienko.ru и *.kornienko.ru. В этом случае вам нужно будет два раза (на каждый хост отдельно) подтвердить методом DNS-1, что вы владелец/администратор этих хостов. Если подтверждение прошло успешно, то у вас появится единый файл сертификата на оба хоста с ключами шифрования. Пароль на сертификат устанавливать не нужно, в настоящей версии серверов наличие пароля к сертификату не предусмотрено.  
 
-Обработка prg-скриптов происходит с использованием технологии COM и СУБД VFP 9/10(Advanced), а не CGI. COM-объекты создаются по мере выполнения запросов от клиентов. По умолчанию визуальный вывод ошибок в СУБД VFP 9/10(Advanced) отключен. В случае ошибки в prg описание этой ошибки возвращается скрипту в переменной ERROR_MESS. Ниже приведены примеры тестового файла py, файла prg и результат его работы. А также результат работы с аналогичным файлом prg, но с ошибкой (отсутствует разрыв последней строки ";").
+Обработка prg-скриптов происходит с использованием технологии COM и прилагаемого повторителя VFoxPro.exe (32 бит), а не CGI. COM-объекты создаются по мере выполнения запросов от клиентов. В случае ошибки в prg описание этой ошибки возвращается скрипту в переменной ERROR_MESS. Ниже приведены примеры тестового файла py, файла prg и результат его работы. А также результат работы с аналогичным файлом prg, но с ошибкой (отсутствует разрыв последней строки ";").
 ### Пример Python скрипта test.py
 ```Python
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
@@ -123,9 +123,9 @@ sys.stdout.write("<h1>Привет мир из Python!</h1>\n" + \
   CRLF= chr(13) + chr(10)
   STD_INPUT= Strconv(env.STD_INPUT,11)
 
-  env.STD_OUTPUT= 'Content-Type: text/html; charset="windows-1251"' + CRLF + CRLF
 * Параметр charset="windows-1251" означает, что кодировка передаваемого текста -
 * "windows-1251".
+  env.STD_OUTPUT= 'Content-Type: text/html; charset="windows-1251"' + CRLF + CRLF
 
   env.STD_OUTPUT= env.STD_OUTPUT + ;
      "<h1>Привет мир из Visual FoxPro!</h1>" + ;
