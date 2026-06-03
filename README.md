@@ -16,7 +16,7 @@ The "-c filename.pfx" parameter specifies the name of the file containing your s
 Prg scripts are processed using COM technology and VFP 9/10(Advanced) DBMS, not CGI. COM objects are created as requests from clients are executed. By default, visual error output in VFP 9/10(Advanced) DBMS is disabled. In case of an error in prg, a description of this error is returned to the script in the ERROR_MESS variable. Below is an example of a prg file and the result of its work. And also the result of working with a similar prg file, but with an error (the last line break ";" is missing).
 ```PowerShell
 PS D:\> D:\work\httpd\https.net.exe /?
-Multithreaded http.net server version 2.0.3, (C) a.kornienko.ru May 2026.
+Multithreaded http.net server version 2.1.0, (C) a.kornienko.ru June 2026.
 
 USAGE:
     https.net [Parameter1 Value1] [Parameter2 Value2] ...
@@ -117,34 +117,36 @@ sys.stdout.write("<h1>Привет мир из Python!</h1>\n" + \
 Пример онлайн https://a.kornienko.ru/test.pyc?lkdlkdlkdlkdlkd
 ### Пример Visual Foxpro скрипта test.prg
 ```xBase
-* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
-*  Тест. Вывод переменных окружения.           версия 03.05.2025  *
-* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
-  CRLF = chr(13) + chr(10)
-  STD_INPUT = Strconv(STD_IO.ReadToEnd(),11)
+* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+*  Тест. Вывод переменных окружения.                   версия 03.06.2026  *
+* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+  CRLF= chr(13) + chr(10)
+  STD_INPUT= Strconv(env.STD_INPUT,11)
 
-* P.S. До этого присвоения информация из STD_IO, находящаяся в качестве
-* стандартного ввода, должна быть прочитана:
-  STD_IO.Write('Content-Type: text/html; charset="windows-1251"' + CRLF + CRLF)
-* Параметр charset="windows-1251" означает, что кодировка передаваемого
-* текста - "windows-1251".
+  env.STD_OUTPUT= 'Content-Type: text/html; charset="windows-1251"' + CRLF + CRLF
+* Параметр charset="windows-1251" означает, что кодировка передаваемого текста -
+* "windows-1251".
 
-  STD_IO.Write("<h1>Привет мир из Visual FoxPro!</h1>" + ;
+  env.STD_OUTPUT= env.STD_OUTPUT + ;
+     "<h1>Привет мир из Visual FoxPro!</h1>" + ;
      "<h3>Переменные окружения:</h3>" + ;
-     "_Accept_Language_=" + iif(Type('_Accept_Language_')="C", ;
-                      _Accept_Language_,"") + ";<br>" + CRLF + ;
-     "SERVER_PROTOCOL=" + SERVER_PROTOCOL + ";<br>" + CRLF + ;
-     "SCRIPT_FILENAME=" + SCRIPT_FILENAME + ";<br>" + CRLF + ;
-     "POST_FILENAME=" + POST_FILENAME + ";<br>" + CRLF +;
-     "QUERY_STRING=" + QUERY_STRING + ";<br>" + CRLF + ;
-     "REMOTE_ADDR=" + REMOTE_ADDR + ";<br>" + CRLF + ;
-     "_User_Agent_=" + iif(Type('_User_Agent_')="C", ;
-                 _User_Agent_,"") + ";<br>" + CRLF + ;
-     "_Cookie_=" + iif(Type('_Cookie_')="C",  ;
-             _Cookie_,"") + ";<br>" + CRLF +  ;
-     "STD_INPUT=" + STD_INPUT + ";<br>" + CRLF)
+     "Accept_Language=" + iif(Type('env.Accept_Language')="C", ;
+                      env.Accept_Language,"") + ";<br>" + CRLF + ;
+     "SERVER_PROTOCOL=" + env.SERVER_PROTOCOL + ";<br>" + CRLF + ;
+     "SCRIPT_FILENAME=" + env.SCRIPT_FILENAME + ";<br>" + CRLF + ;
+     "POST_FILENAME=" + env.POST_FILENAME + ";<br>" + CRLF +;
+     "QUERY_STRING=" + env.QUERY_STRING + ";<br>" + CRLF + ;
+     "REMOTE_ADDR=" + env.REMOTE_ADDR + ";<br>" + CRLF + ;
+     "User_Agent=" + iif(Type('env.User_Agent')="C", ;
+                 env.User_Agent,"") + ";<br>" + CRLF + ;
+     "STD_INPUT=" + env.STD_INPUT + ";<br>" + CRLF + ;
+     "Cookie=" + iif(Type('env.Cookie')="C",  ;
+             env.Cookie,"") + ";<br>" + CRLF +  ;
+     "ERROR_CODE=" + tran(env.ERROR_CODE) + ";<br>" + CRLF
 
-  STD_IO.Write("ERROR_MESS=" + ERROR_MESS)
+  IF env.ERROR_CODE > 0
+    env.STD_OUTPUT= env.STD_OUTPUT+ "ERROR_MESS=" + env.ERROR_MESS
+  ENDI
 
 * P.S.
 * Также могут быть доступны и многие другие переменные окружения.
