@@ -7,7 +7,7 @@ The root folder for domains (www by default) should contain folders correspondin
 
 The number of threads should not be set to the maximum possible. The default is 100. Watch the log, the last numeric field in each entry shows the number of the running thread. Over time, you will understand how many simultaneous threads you have in use. This value is probably significantly less than 100.  
 
-The https.net server only supports fast CGI, using a simple script based on quickstart technology. A Python example of this script, initcgi.py, is provided in the repository's www folder. The script interpreter runs the initcgi script not when a client request is received, but after the next response is sent. This initial script can be implemented in most modern interpreted languages. This does not apply to prg scripts, for which the VisualFoxPro.Application COM server performs the initCGI role.  
+The https.net server only supports fast CGI, using a simple script based on quickstart technology. A Python example of this script, initcgi.py, is provided in the repository's www folder. The server "softly" launches the initCGI script not when a client request arrives, but after sending the next response. This initial script can be implemented in most modern interpreted languages. This does not apply to prg scripts, for which the vfoxpro.Engine COM server performs the initCGI role.  
 
 By default, the https.net server will process Visual FoxPro and Python scripts. However, in the server settings, you can change the script extension and handler to any other you prefer—the popular PHP or "dotnet fsi," which runs F# scripts with the .fsx extension.  
 
@@ -80,7 +80,7 @@ Parameters:                                                                  Val
 
 Число потоков не следут задавать максимально возможным. По умолчанию — 100. Наблюдайте за журналом, в последнем числовом поле в каждой записи отображен номер работающего потока. Со временем вы поймете какое число одновременных потоков у вас используется. Вероятно это значение значительно меньше 100.  
 
-Сервер https.net поддерживают только быстрый CGI, используя простой скрипт по технологии быстрый старт. Пример для языка Python этого скрипта initcgi.py приведен в репозитории в папке www. Интерпретатор скриптов запускает initcgi-скрипт не в момент поступления запроса от клиента, а после отправки очередного ответа. Такой начальный скрипт может быть реализовон на большинстве современных интерпретируемых языках. Это не относится к скриптам prg, у которых роль initCGI выполняет COM-сервер VisualFoxPro.Application.  
+Сервер https.net поддерживают только быстрый CGI, используя простой скрипт по технологии быстрый старт. Пример для языка Python этого скрипта initcgi.py приведен в репозитории в папке www. Сервер мягко запускает initcgi-скрипт не в момент поступления запроса от клиента, а после отправки очередного ответа. Такой начальный скрипт может быть реализовон на большинстве современных интерпретируемых языках. Это не относится к скриптам prg, у которых роль initCGI выполняет COM-сервер vfoxpro.Engine.  
 
 По умолчанию сервер https.net будет обрабатывать скрипты на Visual Foxpro и Python. Но в параметрах серверов вы можете заменить расширение скрипта и обработчик на любой другой, которому вы по тем или иным причинам отдаете предпочтение — на популярный php или на "dotnet fsi", выполняющий скрипты с расширением fsx, написанные на F#.  
 
