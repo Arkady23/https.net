@@ -44,9 +44,8 @@ public class F : Form {
     public const string CL="Content-Length",CT="Content-Type",CD="Content-Disposition",
                  DI="index.html", stopIconText= hs+" is stopped", initCGI= "initcgi.",
                  CC="Cache-Control: public, max-age=2300000\r\n", H1= "HTTP/1.1 ",
-                 OK= H1+"200 OK\r\n",UTF8="UTF-8",CLR="sys(2004)+'VFPclear.prg'",
-                 logX=hn+".x.log", logY=hn+".y.log", CT_T=CT+": text/plain\r\n", 
-                 https="https", http="http",
+                 CT_T=CT+": text/plain\r\n", logX=hn+".x.log", logY=hn+".y.log",
+                 OK= H1+"200 OK\r\n", UTF8="UTF-8", https="https", http="http",
            //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
                  ver="version 2.1.0", verD="June 2026";       //!!
            //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -353,7 +352,7 @@ public class F : Form {
               }
             }
             if(vfpa!=null){
-              VFPclr= vfp[i0].Eval("file("+CLR+")");
+              VFPclr= vfp[i0].Eval("file(THIS.VFPclear)");
               vfpi[i0]= vfp[i0].ProcessID;
 
               // Свободные номера баз данных
