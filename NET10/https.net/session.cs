@@ -1,7 +1,7 @@
 //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 //!!                                                         !!
 //!!    https.net сервер на C#.      Автор: A.Б.Корниенко    !!
-//!!    class Session                версия от 28.05.2026    !!
+//!!    class Session                версия от 03.06.2026    !!
 //!!                                                         !!
 //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
@@ -10,6 +10,7 @@ using System.IO;
 using System.Web;
 using System.Net;
 using System.Text;
+using System.Buffers;
 using System.Threading;
 using System.Net.Sockets;
 using System.Diagnostics;
@@ -22,14 +23,15 @@ namespace https2 {
 
   public class Session {
     int i, j, k, m, m1, i1, i2, k1, len, eof, Content_Length, n1, n2, nbuf;
-    string h1, reso, res, head, Host, Content_Type, Content_T, IP, x1,
-           Content_Disposition, QUERY_STRING, dirname, filename, prg,
-           fullprg, Protocol;
+    string h1, reso, res, head, Host, Content_Type, Content_T, IP, fullprg,
+           Content_Disposition, QUERY_STRING, dirname, filename, Protocol,
+           x1;
     Queue<string> heads = new Queue<string>();
     CancellationTokenSource readCts = new();
     CancellationTokenSource handCts = new();
     CancellationTokenSource vfpCts = new();
     byte[] buf = new byte[F.bu];
+    MemoryStream VFPstream;
     SslStream sslStream;
     FileStream file1;           // Файл для записи POST-данных
     IPEndPoint point;           // IP адрес клиента
@@ -38,11 +40,11 @@ namespace https2 {
     Task<bool> ts;              // Задача запуска обработчика
     Encoding UTF;
     DateTime dt1;
+    ValueTask t;                // Задача задача ввода-вывода
     byte R, R1;
-    double n;
+    bool l, l1;                 // l=false, если заголовки прочитаны
+    double n;                   // Количество мс в отметке времени
     long nf;                    // Длина посылаемого файла/потока
-    bool l;                     // false, если заголовки прочитаны
-    Task t;                     // Задача сессии и задача ввода-вывода
 
     public Session(int j) {
       dirname=filename= string.Empty;
@@ -73,16 +75,18 @@ namespace https2 {
       }
 
       head=h1=res=reso=Host=Content_T=Content_Type=Content_Disposition=QUERY_STRING=string.Empty;
+      VFPstream?.Close(); VFPstream?.Dispose();
+      eof = len = i2 = Content_Length = F.i0;
       UTF = Encoding.GetEncoding(F.UTF8);
-      len = i2 = Content_Length = F.i0;
-      F.IP = F.IP1 = IP;                    // Предыдущий IP для сравнения на выходе и входе
+      VFPstream = new MemoryStream();
       fs = file1 = null;                    // Освободить объекты
+      F.IP = F.IP1 = IP;                    // Предыдущий IP для сравнения на выходе и входе
       k1 = n2 = F.bu3;                      // Смещение для чтения 2-ой части заголовков
       k = n1 = F.bu1;                       // Смещение для чтения 1-ой части заголовков
       R = R1 = F.b0;                        // Однобайтовые флажки
       heads.Clear();                        // Очистка блока заголовков
       nbuf = F.bu4;                         // Число читаемых за один раз в заголовках байтов
-      eof = F.i1;                           // Флаг состояния чтения потока
+      ts = null;                            // Задача запуска оброботчика
       l = true;                             // Заголовок пока не прочитан
     }
 
@@ -101,7 +105,7 @@ namespace https2 {
       Protocol = Prot;
       if((F.iIP>F.st1 && F.IP==IP) || (F.iIP1>F.qu1 && F.IP1==IP)) {
         client.Close();
-        F.log2($"\tIP {IP} blocked.");
+        F.log2($"/0000 {IP}\t IP blocked.");
       } else {
         Interlocked.Increment(ref F.nClients);
         if(F.IP1==IP) Interlocked.Increment(ref F.iIP1);
@@ -209,7 +213,8 @@ namespace https2 {
 
         if(res.Length>F.i1 && F.log9>F.i0) {
           n = DateTime.UtcNow.Subtract(dt1).TotalMilliseconds;
-          F.log2("/"+(n>9999?"****" : n.ToString("0000"))+" "+IP+" "+j+"\t"+res);
+          string nStr = n > 9999 ? "****" : $"{n:0000}";
+          F.log2($"/{nStr} {IP} {j}\t{res}");
         }
         Init();
       }
@@ -278,13 +283,34 @@ namespace https2 {
               break;
             case F.b2:
               m = -F.i1;
-              if(F.cgia && F.freeCGI.TryPop(out m))
-                 ts = Task.Run(() => F.start_CGI(m));
+              if(F.cgia && F.freeCGI.TryPop(out m)) {
+                if(F.cgib[m]==F.b0) {
+                  l1=true;
+                } else {
+                  try {
+                    l1 = F.proc[i] == null || F.proc[i].HasExited;
+                  } catch(Exception) {
+                    l1 = true;
+                  }
+                }
+                if(l1) ts = Task.Run(() => F.start_CGI(m));
+              }
               break;
             case F.b3:
               m = -F.i1;
-              if(F.vfpa != null && F.freeVFP.TryPop(out m))
-                 ts = Task.Run(() => F.start_VFP(m));
+              if(F.vfpa != null && F.freeVFP.TryPop(out m)) {
+                if(F.vfpb[m]==F.b0) {
+                  l1=true;
+                } else {
+                  try {
+                    _= F.vfp[m].Name;
+                    l1=false;
+                  } catch(Exception) {
+                    l1=true;
+                  }
+                }
+                if(l1) ts = Task.Run(() => F.start_VFP(m));
+              }
               break;
             }
             break;
@@ -409,7 +435,7 @@ namespace https2 {
     async Task failure(string s) {
       string z = F.H1+s+"\r\n";
       i = UTF.GetBytes(z,F.i0,z.Length,buf,F.i0);
-      await stream.WriteAsync(buf,F.i0,i);
+      await stream.WriteAsync(buf.AsMemory(F.i0,i));
     }
 
     // Запись данных POST aсинхронно*
@@ -418,12 +444,7 @@ namespace https2 {
       case F.b2:
         return F.proc[m].StandardInput.BaseStream.WriteAsync(data);
       case F.b3:
-
-        // Только кодировка F.vfpw формирует строку без кодирования
-        F.vfp[m].SetVar("__IO",F.vfpw.GetString(data.Span));
-
-        F.vfp[m].DoCmd("STD_IO.Write(__IO)");
-        return ValueTask.CompletedTask;
+        return VFPstream.WriteAsync(data);
       default:
         return file1.WriteAsync(data);
       }
@@ -446,22 +467,23 @@ namespace https2 {
 
         // Дополнительная проверка на конец потока (EOF)
         if(i > F.i0) {
-          if(eof > F.i0) {
+          if(eof == F.i0) {
             dt1 = DateTime.UtcNow;
-            eof = F.i0;
+            eof = F.i1;   // Обычное чтение
           }
         } else {
-          eof = -F.i1;
+          eof = F.i3;     // Конец потока
+          l = false;
         }
       } catch(OperationCanceledException) {
 
         // Сюда мы гарантированно прилетим при таймауте F.tw, 
         // при этом фоновая задача в ОС гарантированно УНИЧТОЖИТСЯ
-        i=eof= -F.i1;
+        i=eof= -F.i1;     // Таймаут приравнивается сетевой ошибке
 
       } catch(Exception) {
-        i=eof= -F.i1;
-        l = false;    // Достигнут конец потока или сетевая ошибка
+        i=eof= -F.i1;     // Сетевая ошибка
+        l = false;
       }
     }
 
@@ -472,14 +494,14 @@ namespace https2 {
       nf = fs.Length;
       head += nf+"\r\n\r\n";
       i = UTF.GetBytes(head, F.i0, head.Length, buf, n1);
-      i2 = await fs.ReadAsync(buf, i, nbuf-i); // Заполнить первую половину буфера синхронно
-      t = stream.WriteAsync(buf, n1, i2+i);    // Асинхронно записать в поток
+      i2 = await fs.ReadAsync(buf.AsMemory(i, nbuf-i)); // Заполнить первую половину буфера синхронно
+      t = stream.WriteAsync(buf.AsMemory(n1, i2+i));    // Асинхронно записать в поток
       k = n2;
       while (i2<nf) {
-        i = await fs.ReadAsync(buf, k, nbuf);  // Синхронно прочитать
+        i = await fs.ReadAsync(buf.AsMemory(k, nbuf));  // Синхронно прочитать
         if(i>F.i0) {
           await t;
-          t = stream.WriteAsync(buf, k, i);
+          t = stream.WriteAsync(buf.AsMemory(k, i));
           k = k==n1? n2 : n1;
           i2 += i;
         } else {
@@ -511,11 +533,11 @@ namespace https2 {
 
     // Передача данных из потока в объект
     async Task send_stream(byte b) {
-      if(len<Content_Length) {
+      if(len<Content_Length && eof==F.i1) {
         l = true;
         while (l) {
 
-          // Читаем асинхронно, первый буфер был прочитан при чтении заголовков
+          // Читаем асинхронно
           await sReadAsync();
 
           if(i>F.i0) {
@@ -554,19 +576,19 @@ namespace https2 {
       if(m < F.i0) {
 
         // Вывести сообщение об отсутствии интерпретатора
-        send_prg1("There is no \""+F.Proc+"\" on the server :(");
+        send_prg1($"There is no \"{F.Proc}\" on the server :(");
         return;
       }
 
       try{
-        if(await ts) m = F.db;
+        if(ts != null && await ts) m = F.db;
       } catch(Exception) {
         m = F.db;
       }
       if(m >= F.db) {
 
         // Вывести сообщение, что все доступные процессы интерпретатора заняты
-        send_prg1("All "+F.db.ToString()+" \""+F.Proc+"\" processes are busy :(");
+        send_prg1($"All {F.db} \"{F.Proc}\" processes are busy :(");
         return;
       }
 
@@ -588,7 +610,7 @@ namespace https2 {
       }
       F.proc[m].StandardInput.Close();
 
-      if(eof==F.i0) {      // Если нет разрыва связи
+      if(eof>F.i0) {      // Если нет разрыва связи
 
         // Вывод полученных данных cgi-скрипта
         reso = F.OK+head;
@@ -605,7 +627,7 @@ namespace https2 {
         // Проверить код возврата
         if(R1>F.b0) {
           i=F.valInt(UTF.GetString(buf, k1, F.i4));
-          if(i>=100 && i<=599) {               // Случай API
+          if(i>=100 && i<=599) {
              i = Array.IndexOf(buf, F.b10, k1, i1);
              if(i>k1) {
                 i++;
@@ -625,8 +647,8 @@ namespace https2 {
 
         i1 += k;
         while (i1>F.i0) {
-          t = stream.WriteAsync(buf, k1, i1);  // Асинхронно записать в поток
-          k1 = k1<n2? n2 : n1;                 // Следующее начало буфера
+          t = stream.WriteAsync(buf.AsMemory(k1, i1));  // Асинхронно записать в поток
+          k1 = k1<n2? n2 : n1;                          // Следующее начало буфера
           i1 = F.proc[m].StandardOutput.BaseStream.Read(buf, k1, nbuf);
           await t;
         }
@@ -641,133 +663,84 @@ namespace https2 {
       stream.Write(buf,F.i0,i);
     }
 
-    // Прочитать i1 символов начиная с i2 в buf начиная с k1
-    void stdioRead() {
-      i2 += i1;            // Превести позицию в STD_IO
-      if(i2>Content_Length) i1 -= i2-Content_Length;
-
-      // Файлы выводятся только с таким кодированием
-      object vfpResult = F.vfp[m].Eval("STD_IO.Read(" + i1 + ")");
-
-      // Если это любой массив (byte[] или Byte[*]) — копируем быстро
-      if (vfpResult is Array vfpArray) {
-        Array.Copy(vfpArray, vfpArray.GetLowerBound(0), buf, k1, Math.Min(i1, vfpArray.Length));
-      }
-
-      // Если другая среда внезапно вернула старую добрую строку
-      else if (vfpResult is string vfpString) {
-        F.vfpw.GetBytes(vfpString, F.i0, i1, buf, k1);
-      }
-    }
-
     void clear_prg(int m) {
       _= Task.Run(() => F.clear_prg(m));
     }
 
     async Task send_prg() {
-      prg=F.afterStr9(ref res,"/");
+      //prg=F.afterStr9(ref res,"/");
       fullprg=F.fullres(ref res);
       if(m < F.i0) {
 
         // Вывести сообщение об отсутствии VFP в реестре
-        send_prg1("MS VFP is missing in the Windows registry :(");
+        send_prg1("\"vfoxpro.Engine\" is missing in the Windows registry :(");
         return;
       }
 
-      if(await ts) m = F.db;
+      if(ts != null && await ts) m = F.db;
       if(m >= F.db) {
-
         // Вывести сообщение, что все процессы VFP заняты
-        send_prg1("All "+F.db.ToString()+" VFP processes are busy :(");
+        send_prg1($"All {F.db.ToString()} VFoxPro.exe processes are busy :(");
         return;
 
       } else {
-        F.vfp[m].DoCmd("SET DEFA TO (\""+F.beforStr9(ref fullprg,"/")+"\")");
-        F.vfp[m].SetVar("QUERY_STRING",QUERY_STRING);
-        F.vfp[m].SetVar("SERVER_PROTOCOL",Protocol);
-        F.vfp[m].SetVar("SCRIPT_FILENAME",fullprg);
-        F.vfp[m].SetVar("REMOTE_ADDR",IP);
-        while (heads.Count>F.i1) F.vfp[m].SetVar("_"+heads.Dequeue().Replace("-","_")+
-              "_",heads.Dequeue());
-        if(filename2()) {     // Определяем и проверяем наличие имя файла для POST-данных
-          F.vfp[m].SetVar("POST_FILENAME",F.Folder+filename);
-          await send_file();        // Записываем в файл
+        if(filename2()) {      // Определяем и проверяем наличие имя файла для данных
+          F.vfp[m].POST_FILENAME= F.Folder+filename;
+          await send_file();   // Записываем в файл
         } else {
-          F.vfp[m].SetVar("POST_FILENAME",filename);
-          await send_stream(R);  // Записываем в STD_IO в VFP
+          F.vfp[m].POST_FILENAME= filename;
+          await send_stream(R);
         }
-        if(eof < F.i0) {         // Если обнаружен разрыв связи
+        if(eof < F.i0) {       // Если обнаружен разрыв связи
           clear_prg(m);
           return;
         }
       }
-
-      // Вывод полученных данных prg-скрипта
-
-
+      F.vfp[m].REMOTE_ADDR= IP;
+      F.vfp[m].SCRIPT_FILENAME= fullprg;
+      F.vfp[m].SERVER_PROTOCOL= Protocol;
+      F.vfp[m].QUERY_STRING= QUERY_STRING;
+      F.vfp[m].STD_INPUT= VFPstream.Length > F.i0? VFPstream.ToArray() : new byte[0];
+      while (heads.Count>F.i1) F.vfp[m].SetVar(heads.Dequeue().Replace("-","_"),
+             heads.Dequeue());
       if (vfpCts == null || !vfpCts.TryReset()) {
          vfpCts?.Dispose();
          vfpCts = new CancellationTokenSource();
       }
+      // Если выполнение prg не закончилось за 25 минут, то аварийно снять процесс
       vfpCts.CancelAfter(F.i8);
 
+      // Вывод полученных данных prg-скрипта
       try{
-        head = F.OK+head;
-        if(R1==F.b0){
-
-          // Если выполнение prg не закончилось за 25 минут, то аварийно снять процесс
-          await Task.Run(() => F.vfp[m].Eval(F.beforStr9(ref prg,".prg")+
-                        "()")).WaitAsync(vfpCts.Token);
-
-        }else{      // Случай API
-          var api= Task.Run(() => F.vfp[m].Eval(F.beforStr9(ref prg,".prg")+"()"));
-
-          await api.WaitAsync(vfpCts.Token);
-          var ret = await api;
-          if(ret.GetType().Name=="String")
-             if(ret.Length>5) {
-               i = F.valInt(ret.Substring(F.i0,F.i4));
-               if(i>=100 && i<=599) head = F.H1+ret+"\r\n";
-          }
+        var api= Task.Run(() => F.vfp[m].Eval());
+        var ret = await api.WaitAsync(vfpCts.Token);
+        if(ret.GetType().Name=="String" && ret.Length>5) {
+           i = F.valInt(ret.Substring(F.i0,F.i4));
+           if(i>=100 && i<=599) head = $"{F.H1}{ret}\r\n";
+        } else {
+          head = string.Concat(F.OK,head);
         }
-        Content_Length = F.vfp[m].Eval("STD_IO.LenStream()");
+        Content_Length = (int)VFPstream.Length;
       } catch(OperationCanceledException){
         F.killVFP(m);
-        head=F.OK+head+F.CT_T+"\r\nError in VFP: The maximum calculation duration of "+
-             F.i8+" ms has been exceeded.";
+        head= $"{F.OK}{head}{F.CT_T}\r\nError in VFoxPro.exe: The maximum calculation duration of {
+                 F.i8} ms has been exceeded.";
         Content_Length = F.i0;
       } catch(Exception e){
-        head=F.OK+head+F.CT_T+"\r\nError in VFP: "+e.Message;
+        head= $"{F.OK}{head}{F.CT_T}\r\nError in VFoxPro.exe: {e.Message}";
         Content_Length = F.i0;
       }
-
-      // Начальная позиция в STD_IO
-      i2 = F.i0;
-
-      // Помещаем заголовок в буфер
-      k = UTF.GetBytes(head,i2,head.Length,buf,n2);
-
-      i1 = nbuf-k;                // До конца буфера осталось
-
-      // Прочитать i1 символов начиная с i2 в buf начиная с n2
-      k1 = n2+k;
-      stdioRead();
-
-      // Асинхронно байты записать в поток
-      t = stream.WriteAsync(buf, n2, i1+k);
-                           
-      i1 = nbuf;
-      while (i2<Content_Length) {
-        k1 = k1<n2? n2 : n1;      // Следующее начало буфера
-        stdioRead();
+      string sAll = string.Concat(head, F.vfp[m].STD_OUTPUT);
+      int i2 = F.vfpw.GetByteCount(sAll);
+      byte[] buffer = ArrayPool<byte>.Shared.Rent(i2);
+      try {
+        F.vfpw.GetBytes(sAll, F.i0, sAll.Length, buffer, F.i0);
+        t = stream.WriteAsync(buffer.AsMemory(F.i0, i2));
+        clear_prg(m); 
         await t;
-
-        // Асинхронно записать в поток, сконвертировав кодировку
-        t = stream.WriteAsync(buf, k1, i1);
-
+      } finally {
+        ArrayPool<byte>.Shared.Return(buffer);
       }
-      clear_prg(m);
-      await t;
     }
 
   }

@@ -1,7 +1,7 @@
 //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 //!!                                                     !!
 //!!   https.net сервер на C#.    Автор: A.Б.Корниенко   !!
-//!!   Головной блок              версия от 28.05.2026   !!
+//!!   Головной блок              версия от 02.06.2026   !!
 //!!                                                     !!
 //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
@@ -39,8 +39,8 @@ public class F : Form {
     TextBox textBox1;
     string[] param;
 
-    private const string hn="https.net";
-    private const string hs=hn+" server", fn=hn+".xml";
+    const string hn="https.net";
+    const string hs=hn+" server", fn=hn+".xml", leftSp="                       \t";
     public const string CL="Content-Length",CT="Content-Type",CD="Content-Disposition",
                  DI="index.html", stopIconText= hs+" is stopped", initCGI= "initcgi.",
                  CC="Cache-Control: public, max-age=2300000\r\n", H1= "HTTP/1.1 ",
@@ -48,7 +48,7 @@ public class F : Form {
                  logX=hn+".x.log", logY=hn+".y.log", CT_T=CT+": text/plain\r\n", 
                  https="https", http="http",
            //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-                 ver="version 2.0.3", verD="May 2026";        //!!
+                 ver="version 2.1.0", verD="June 2026";       //!!
            //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     public const  byte b0=0, b1=1, b2=2, b3=3, b10=10, b13=13;
     public const  int i0=0, i1=1, i2=2, i3=3, i4=4, i8=1500000, i9=2147483647;
@@ -275,7 +275,7 @@ public class F : Form {
                      EnabledSslProtocols = SslProtocols.Tls13,
                      ClientCertificateRequired = false };
             } catch(Exception e) {
-              log("\tCertificate error: "+e.Message);
+              log($"\tCertificate error: {e.Message}");
               cert = null;
             }
             if(!(cert!=null)) port=i0;
@@ -316,10 +316,10 @@ public class F : Form {
           cgia = ! start_CGI(i0,b1);
           if(cgia) {
             if(it1>0) {
-            if(it1>db) it1=it;
+              if(it1>db) it1=it;
               for (i=i1; i<it1; i++) if(start_CGI(i,b1)) break;
             } else {
-              cgiQuit(i0);
+              cgiQuit(in it1);
               cgib[i0]=b0;
             }
 
@@ -332,9 +332,9 @@ public class F : Form {
                 "\tthe \""+DocumentRoot+initCGI+Ext+"\" script could not be run.");
           }
 
-          // Запустить и настроить экземпляр VFP
+          // Запустить и настроить экземпляр VFoxPro
           VFPclr = false;
-          vfpa = Type.GetTypeFromProgID("VisualFoxPro.Application");
+          vfpa = Type.GetTypeFromProgID("vfoxpro.Engine");
           if(vfpa!=null){
             vfp = new dynamic[db];
             vfpb = new byte[db];
@@ -347,16 +347,14 @@ public class F : Form {
             }
             if(vfpa!=null){
               VFP9= vfp[i0].Eval("sys(17)")=="Pentium";
-              if(start_VFP2(i0)) {
-                log("\tCOM server 'VFP.memlib"+(VFP9?"32'":"'")+
-                    " is not registered in Windows registry.");
+              if(start_VFP(i0,b1)) {
+                log("\tCOM server \"vfoxpro.Engine\" is not registered in Windows registry.");
                 vfpa= null;
               }
             }
             if(vfpa!=null){
               VFPclr= vfp[i0].Eval("file("+CLR+")");
               vfpi[i0]= vfp[i0].ProcessID;
-              start_VFP3(i0);
 
               // Свободные номера баз данных
               freeVFP= new ConcurrentStack<int>();
@@ -370,7 +368,7 @@ public class F : Form {
               if(db1>db) db1=db;
               for (i=i1; i<db1; i++) if(start_VFP(i,b1)) break;
             } else {
-              vfpQuit(i0);
+              vfpQuit(in db1);
               vfpb[i0]=b0;
             }
           }
@@ -384,10 +382,10 @@ public class F : Form {
 
             // Отобразить значок работы
             nIcon.Icon = ico;  // SystemIcons.Shield;
-            nIcon.Text = hs+" is running";
-            log("\tThe "+hs+" "+ver+" is running.\r\n"+"\t".PadLeft(24)+
-                ((port>0 && port1>0)?"Both https- and http" :
-                (port>0? https:http))+"-sessions are available.");
+            nIcon.Text = $"{hs} is running";
+            string pp = (port > 0 && port1 > 0) ? "Both https- and http" :
+                        (port > 0 ? https : http);
+            log($"\tThe {hs} {ver} is running.\r\n{leftSp}{pp}-sessions are available.");
 
           } else {
             notExit = false;   // Отметить для возможности снятия, т.к. сервер запущен
@@ -423,13 +421,13 @@ public class F : Form {
         this.StopIcon();
 
         // Закрыть все процессы интерпретатора
-        if(cgia) for(i=i0; i<it; i++) if(cgib[i]>b0) cgiQuit(i);
+        if(cgia) for(i=i0; i<it; i++) if(cgib[i]>b0) cgiQuit(in i);
         proc = null;
         cgib = null;
         cgi = null;
 
         // Закрыто все процессы VFP
-        if(vfpa != null) for(i=i0; i<db; i++) if(vfpb[i]>b0) vfpQuit(i);
+        if(vfpa != null) for(i=i0; i<db; i++) if(vfpb[i]>b0) vfpQuit(in i);
         vfpb = null;
         vfpa = null;
         vfpi = null;
@@ -440,13 +438,20 @@ public class F : Form {
       if(!notQuit) this.Close();
     }
 
-    static void cgiQuit(int i) {
+    static void cgiQuit(in int i) {
        try{ proc[i].StandardInput.WriteLine(string.Empty); }
        catch(Exception) { }
     }
 
-    static void vfpQuit(int i) {
-       try{ vfp[i].Quit(); }catch(Exception){ }
+    static void vfpQuit(in int i) {
+      if(vfp[i] != null) {
+        try {
+          if(Marshal.IsComObject(vfp[i]))
+           Marshal.FinalReleaseComObject(vfp[i]);
+        } finally {
+          vfp[i] = null;
+        }
+      }
     }
 
     public static string ltri(ref string x){
@@ -505,13 +510,6 @@ public class F : Form {
       return z;
     }
 
-
-
-
-
-
-
-
     static void InitLogging() {
       lock (logFlush) {
         if(logFS == null) {
@@ -542,37 +540,7 @@ public class F : Form {
           log9 = i0;
         }
       }
-
-
-      // Нужно ли начать запись в другой журнал?
-/*      if(logi>=log9 && logFS!=null){
-        Interlocked.Exchange(ref logi,i1);
-        logZ = (logY==logZ)? logX:logY;
-        logSW.Close();
-        logFS.Close();
-        log1();
-      }else{
-        Interlocked.Increment(ref logi);
-      }
-
-      if(!(logFS!=null)){
-        // Отправка стандартного вывода на консоль в чередующиеся кешируемые файлы:
-        logZ=(File.GetLastWriteTime(logX)<=File.GetLastWriteTime(logY))? logX : logY;
-        log1();
-      }
-
-      // Записать в файл
-      try{
-        Console.WriteLine(DateTime.Now.ToString("dd.MM.yyyy HH:mm:ss.fff")+x);
-        logSW.Flush();
-        logFS.Flush();
-      }catch(ObjectDisposedException){
-        log9=i0;
-      }catch(Exception){
-        Thread.Sleep(23); log2(x+" *");
-      }*/
     }
-
 
     // 2. ВТОРАЯ ИНИЦИАЛИЗАЦИЯ (Вызывать, когда считали конфиг и уже известно значение log9)
     // Запускает фоновый поток записи и таймер сброса для высоконагруженного F.log2()
@@ -661,22 +629,9 @@ public class F : Form {
       Console.WriteLine($"{DateTime.Now:dd.MM.yyyy HH:mm:ss.fff}{x ?? "null"}");
     }
 
-//    public static void log2(string x){
-//      if(log9>i0){
-
     // МЕТОД 2: Высоконагруженный фоновый логгер.
     public static void log2(object x) {
       if(log9>i0) logQueue.Writer.TryWrite(x?.ToString() ?? "null");
-
-
-
-
-
-
-//        Thread log2 = new Thread(log);
-//        log2.Priority = ThreadPriority.BelowNormal;
-//        log2.Start(x);
-//      }
     }
 
     public static int valInt(string x){
@@ -687,31 +642,21 @@ public class F : Form {
 
     // Запуск скрипта initCGI
     public static bool start_CGI(int i, byte b=b2) {
-      bool l;
+      bool l=true;
 
-      // Проверим работает ли этот процесс
+      // Если процесс не работает, то запустим
+      cgi[i] = new ProcessStartInfo();
+      cgi[i].FileName = Proc;
+      cgi[i].CreateNoWindow = true;
+      cgi[i].UseShellExecute = false;
+      cgi[i].RedirectStandardInput = true;
+      cgi[i].RedirectStandardOutput = true;
+      cgi[i].Arguments = Args+" \""+DocumentRoot+initCGI+Ext+"\"";
       try {
-        l = proc[i] == null || proc[i].HasExited;
-      } catch(Exception) {
-        l = true;
-      }
-
-      if( l ) {
-
-        // Если процесс не работает, то запустим
-        cgi[i] = new ProcessStartInfo();
-        cgi[i].FileName = Proc;
-        cgi[i].CreateNoWindow = true;
-        cgi[i].UseShellExecute = false;
-        cgi[i].RedirectStandardInput = true;
-        cgi[i].RedirectStandardOutput = true;
-        cgi[i].Arguments = Args+" \""+DocumentRoot+initCGI+Ext+"\"";
-        try {
-          proc[i] = Process.Start(cgi[i]);
-          cgib[i] = b;
-          l = false;
-        } catch(Exception) { }
-      }
+        proc[i] = Process.Start(cgi[i]);
+        cgib[i] = b;
+        l = false;
+      } catch(Exception) { }
       return l;
     }
 
@@ -727,53 +672,20 @@ public class F : Form {
 
     // Запуск VFP
     public static bool start_VFP(int m, byte b=b2) {
-      if(start_VFP2(m)) {
-        return true;
-      } else {
-        vfpb[m] = b;
-        return false;
-      }
-    }
-
-    public static bool start_VFP2(int m) {
-      if(vfpb[m]!=b0) {
-        try {
-          _= vfp[m].Name;
-          return false;
-        } catch(Exception) {
-          killVFP(m);
-        }
-      }
-      
+      if(vfpb[m]!=b0) killVFP(m);      // Зависший процесс
       try {
         vfp[m]= Activator.CreateInstance(vfpa);
         vfpi[m]= vfp[m].ProcessID;
-        start_VFP3(m);
+        vfpb[m] = b;
         return false;
       } catch(Exception) { }
       return true;
     }
 
-    public static void start_VFP3(int m) {
-      vfp[m].DoCmd("on erro ERROR_MESS='ERROR: '+MESSAGE()+' IN: '+MESSAGE(1)");
-      vfp[m].DoCmd("STD_IO=CreateO('VFP.memlib"+(VFP9?"32')":"')"));
-      vfp[m].SetVar("ERROR_MESS",string.Empty);
-    }
-
     // Подготовим VFP к новым заданиям
     public static void clear_prg(int m) {
       try{
-        if(VFPclr){
-          vfp[m].DoCmd("do ("+CLR+")");
-        }else{
-          vfp[m].DoCmd("STD_IO.CloseAll()");
-          vfp[m].DoCmd("clos data all");
-          vfp[m].DoCmd("clea even");
-          vfp[m].DoCmd("clea prog");
-          vfp[m].DoCmd("clea all");
-          vfp[m].DoCmd("clos all");
-        }
-        start_VFP3(m);
+        vfp[m].clearPRG(VFPclr);
       }catch(Exception){
         vfpQuit(m);
         vfpb[m]=b0;
@@ -789,18 +701,7 @@ public class F : Form {
     public static void killVFP(int m) {
       try { Process.GetProcessById(vfpi[m]).Kill(); }
       catch(Exception) { }
-      delVFP(ref m);
-    }
-
-    static void delVFP(ref int m) {
-      if(vfp[m] != null) {
-        try {
-          if(Marshal.IsComObject(vfp[m]))
-           Marshal.FinalReleaseComObject(vfp[m]);
-        } catch (Exception) { } finally {
-          vfp[m] = null;
-        }
-      }
+      vfpQuit(in m);
     }
 
     // Выполнить команду "schtasks"
@@ -889,8 +790,12 @@ public class F : Form {
         }
         tx = string.Empty;
       } else if(args.Length>i0) {
-        tx = "<?xml version=\"1.0\" encoding=\"UTF-16\"?>"+@"
-<Task version="+"\"1.2\" xmlns=\"http://schemas.microsoft.com/windows/2004/02/mit/task\">"+@"
+
+        bool hasSpace = Fullexe.Contains(' ');
+        string quote = hasSpace ? "\"" : "";
+        tx = $"""
+<?xml version="1.0" encoding="UTF-16"?>
+<Task version="1.2" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
   <Triggers>
     <BootTrigger>
       <Enabled>true</Enabled>
@@ -906,12 +811,12 @@ public class F : Form {
   </Settings>
   <Actions>
     <Exec>
-      <Command>"+toStd(Fullexe)+@"</Command>
+      <Command>{quote}{Fullexe}{quote}</Command>
       <Arguments></Arguments>
     </Exec>
   </Actions>
 </Task>
-";
+""";
       }
 
       // Разбор параметров
@@ -1060,8 +965,8 @@ public class F : Form {
         textBox1.ScrollBars = ScrollBars.Vertical;
         Controls.Add(textBox1);
       }
-
-      textBox1.Text = "Multithreaded "+hs+" "+ver+", (C) a.kornienko.ru "+verD+@".
+      textBox1.Text = $"""
+Multithreaded {hs} {ver}, (C) a.kornienko.ru {verD}.
 
 USAGE:
     https.net [Parameter1 Value1] [Parameter2 Value2] ...
@@ -1070,41 +975,41 @@ USAGE:
 
     If necessary, Parameter and Value pairs are specified. If the value is text and contains
     spaces, then it must be enclosed in quotation marks. You can also specify the parameters
-    string in the "+fn+@" file in the <Arguments></Arguments> section.
+    string in the "{fn}" file in the <Arguments></Arguments> section.
 
 Parameters:                                                                  Values:
-     -d      Folder containing the domains.                                      "+DocumentRoot+@"
-     -i      Main document is in the folder. The main document in the            "+DirectoryIndex+@"
+     -d      Folder containing the domains.                                      {DocumentRoot}
+     -i      Main document is in the folder. The main document in the            {DirectoryIndex}
              folder specified by the -d parameter is used to display the page
              with the 404 code - file was not found. To compress traffic,
              files compressed using gzip method of the name.expansion.gz type
              are supported, for example - index.html.gz or library.js.gz etc.
-     -c      Name of the file containing the PFX certificate for the TLS 1.3     "+CerFile+@"
+     -c      Name of the file containing the PFX certificate for the TLS 1.3     {CerFile}
              protocol without a password. If the path is not specified, the
              certificate is searched for in the folder where the https.net
              server is located and in the root folder containing the domains.
-     -p      Port for https-connection. Zero to disable this connection.         "+port.ToString()+@"
-     -p1     Port for http-connection. Zero to disable this connection.          "+port1.ToString()+@"
-     -b      Size of read/write buffers.                                         "+bu.ToString()+@"
-     -q      Allowable number of requests in the queue.                          "+qu.ToString()+@"
-     -q1     Allowed number of requests in the queue per IP.                     "+qu1.ToString()+@"
-     -s      Number of requests being processed at the same time. Maximum        "+st.ToString()+@"
-             value is "+s9.ToString()+@".
-     -s1     Allowed number of simultaneously processed requests per IP.         "+st1.ToString()+@"
-     -w      Allowed time to reserve an open channel for request that did not    "+(tw/1000).ToString()+@"
-             started. From 1 to "+t9.ToString()+@" seconds.
-     -n      Maximum number of dynamically running interpreters. Processes       "+it.ToString()+@"
+     -p      Port for https-connection. Zero to disable this connection.         {port}
+     -p1     Port for http-connection. Zero to disable this connection.          {port1}
+     -b      Size of read/write buffers.                                         {bu}
+     -q      Allowable number of requests in the queue.                          {qu}
+     -q1     Allowed number of requests in the queue per IP.                     {qu1}
+     -s      Number of requests being processed at the same time. Maximum        {st}
+             value is {s9}.
+     -s1     Allowed number of simultaneously processed requests per IP.         {st1}
+     -w      Allowed time to reserve an open channel for request that did not    {tw/1000}
+             started. From 1 to {t9} seconds.
+     -n      Maximum number of dynamically running interpreters. Processes       {it}
              are launched as needed depending on the number of concurrent
-             requests. Maximum value is "+s9.ToString()+@".
-     -n1     The initial number of interpreters to pre-start.                    "+it1.ToString()+@"
-     -f      Maximum number of dynamically launched MS Visual FoxPro             "+db.ToString()+@"
-             instances. Visual FoxPro COMs are created as needed, depending
-             on the number of concurrent requests. The maximum value is "+s9.ToString()+@".
-     -f1     The initial number of pre-created Visual FoxPro COMs.               "+db1.ToString()+@"
-     -log    Size of the query log in rows. The log consists of two              "+log9.ToString()+@"
+             requests. Maximum value is {s9}.
+     -n1     The initial number of interpreters to pre-start.                    {it1}
+     -f      Maximum number of dynamically launched VFoxPro.exe instances.       {db}
+             VFoxPro.exe COMs are created as needed, depending on the number
+             of concurrent requests. The maximum value is {s9}.
+     -f1     The initial number of pre-created VFoxPro.exe COMs.                 {db1}
+     -log    Size of the query log in rows. The log consists of two              {log9}
              interleaved versions https.net.x.log and https.net.y.log. If the
-             size is set to less than "+log0.ToString()+@", then the log is not kept.
-     -post   Maximum size of the accepted request to transfer to the script      "+post.ToString()+@"
+             size is set to less than {log0}, then the log is not kept.
+     -post   Maximum size of the accepted request to transfer to the script      {post}
              file. If it is exceeded, the request is placed in a file,
              the name of which is passed to the script in the environment
              variable POST_FILENAME. Other generated environment variables -
@@ -1114,11 +1019,11 @@ Parameters:                                                                  Val
              in a file. This feature can be used to transfer files to the
              server. In this case, the file name will be in the environment
              variable POST_FILENAME.
-     -proc   Script handler used. If necessary, you must also include            "+Proc+@"
+     -proc   Script handler used. If necessary, you must also include            {Proc}
              the full path to the executable file.
      -args   Additional parameters of the handler startup command line.
-     -ext    Extension of the script files.                                      "+Ext;
-
+     -ext    Extension of the script files.                                      {Ext}
+""";
       return l;
     }
 }
