@@ -110,7 +110,7 @@ DEFINE CLASS Engine AS Custom OLEPUBLIC
     LOCAL i, PropCount, PropName, CurrentAvailablePool
 
     * --- 1. РАСШИРЕНИЕ без очистки ядра VFP ---
-    * Если C#-сервер принудительно передал .T., запускаем скрипт из папки рантайма
+    * Если C#-сервер принудительно передал .T., запускаем скрипт
     IF m.isCustomClear
       TRY
         DO (THIS.VFPclear)
