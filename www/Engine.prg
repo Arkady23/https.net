@@ -33,7 +33,8 @@ DEFINE CLASS Engine AS Custom OLEPUBLIC
   ProcessID       = 0
     
   * Храним стартовый (максимальный) объем доступной памяти пула
-  PROTECTED InitialAvailablePool
+  * и полный путь к допустимой программе очистки мусора
+  PROTECTED InitialAvailablePool, VFPclear
 
   PROCEDURE Init
     =SYS(2335, 0)
@@ -42,10 +43,11 @@ DEFINE CLASS Engine AS Custom OLEPUBLIC
 
     * Устанавливаем настройки среды по умолчанию
     THIS.SetDefaultEnvironment()
-          
+
     TRY
       =SYS(1104)  && Чистим буферы
       THIS.InitialAvailablePool = VAL(SYS(1001))
+      THIS.VFPclear = ADDBS(JUSTPATH(_VFP.ServerName)) + "VFPclear.prg"
       THIS.ProcessID = _VFP.ProcessId
       ret = .T.
     CATCH TO oException
@@ -92,7 +94,7 @@ DEFINE CLASS Engine AS Custom OLEPUBLIC
     CATCH TO oException
       IF m.i > 0 AND oException.ErrorNo = 1
         TRY
-          COMPILE (m.prg)
+          COMPILE (m.prg) NODEBUG
           ret = EVALUATE(m.res)
         CATCH TO oException
           THIS.SetCatchError(m.oException, "EVAL")
@@ -110,15 +112,13 @@ DEFINE CLASS Engine AS Custom OLEPUBLIC
     * --- 1. РАСШИРЕНИЕ без очистки ядра VFP ---
     * Если C#-сервер принудительно передал .T., запускаем скрипт из папки рантайма
     IF m.isCustomClear
-      LOCAL res
-      res = SYS(2004) + "VFPclear.prg"
       TRY
-        DO (m.res)
+        DO (THIS.VFPclear)
       CATCH TO oException
         IF oException.ErrorNo = 1
           TRY
-            COMPILE (m.res)
-            DO (m.res)
+            COMPILE (THIS.VFPclear) NODEBUG
+            DO (THIS.VFPclear)
           CATCH TO oException
             THIS.SetCatchError(m.oException, "CUSTOM CLEAR")
             THIS.DefaultClear()
