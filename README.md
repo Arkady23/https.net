@@ -16,7 +16,7 @@ The "-c filename.pfx" parameter specifies the name of the file containing your s
 Prg scripts are processed using COM technology and the included VFoxPro.exe repeater (32-bit), not CGI. COM objects are created as client requests are processed. If a Prg error occurs, a description of the error is returned to the script in the ERROR_MESS variable. Below are examples of a test py file, a Prg file, and the output from the test. Also included is the output from a similar Prg file, but with an error (the last line break ";" is missing). There is no need to worry about memory leaks in the VFoxPro.exe process; in case of significant leaks, the https.net server will soft-restart VFoxPro.exe.
 ```PowerShell
 PS D:\> D:\work\httpd\https.net.exe /?
-Multithreaded http.net server version 2.1.0, (C) a.kornienko.ru June 2026.
+Multithreaded http.net server version 2.1.2, (C) a.kornienko.ru June 2026.
 
 USAGE:
     https.net [Parameter1 Value1] [Parameter2 Value2] ...
@@ -56,7 +56,7 @@ Parameters:                                                                  Val
      -f      Maximum number of dynamically launched VFoxPro.exe instances.       16
              VFoxPro.exe COMs are created as needed, depending on the number
              of concurrent requests. The maximum value is 32767.
-     -f1     The initial number of pre-created VFoxPro.exe COMs.                 2
+     -f1     The initial number of pre-created VFoxPro.exe COMs.                 4
      -log    Size of the query log in rows. The log consists of two              10000
              interleaved versions http.net.x.log and http.net.y.log. If the
              size is set to less than 80, then the log is not kept.
@@ -309,3 +309,4 @@ Statistics        Avg      Stdev        Max
 сервер сделает быстрее. Кроме того ИИ рекомендует не использовать в качестве движка сам VisualFoxPro.Application, а построить
 легковесный COM-повторитель prg, использующий библиотеки Runtime. Поэтому, к сожалению, эта версия будет не совместима с предыдущей по переменным окружения. Выше заменён пример доступа к переменным окружения. Теперь вы можете не использовать VFP.Memlib32/VFP.Memlib, данные будут помещаться на COM, который одновременно является повторителем команд и функций Visual Foxpro. Текст повторителя и библиотеки Runtime опубликованы. Также прилагаются командные файлы регистрации библиотеки-ядра Visual FoxPro и повторителя VFoxPro.exe. Эта архитектура будет более производительная, чем предыдущие версии.  
 2.1.1 https.net, 0.0.1 VFoxPro(Engine) June 2026. В связи с тем, что расширение VFPclear.prg ранее располагадась в папке с vfp9.exe/vfpa.exe, а с переходом на Runtime это расширение переехало в эту папку, путь в обоих программах заменён на путь расположения самого VFoxPro.exe.  
+2.1.2 June 2026. Исправлены замеченные ошибки. В журнал добавлена информация об обработчике (Python и VFoxPro). Дополнительно к номеру сессии через дробь выводится номер обработчика.  
