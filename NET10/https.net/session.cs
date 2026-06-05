@@ -1,7 +1,7 @@
 //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 //!!                                                         !!
 //!!    https.net сервер на C#.      Автор: A.Б.Корниенко    !!
-//!!    class Session                версия от 03.06.2026    !!
+//!!    class Session                версия от 05.06.2026    !!
 //!!                                                         !!
 //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
@@ -29,7 +29,7 @@ namespace https2 {
     Queue<string> heads = new Queue<string>();
     CancellationTokenSource readCts = new();
     CancellationTokenSource handCts = new();
-    CancellationTokenSource vfpCts = new();
+    CancellationTokenSource exeCts = new();
     byte[] buf = new byte[F.bu];
     MemoryStream VFPstream;
     SslStream sslStream;
@@ -41,7 +41,7 @@ namespace https2 {
     Encoding UTF;
     DateTime dt1;
     ValueTask t;                // Задача задача ввода-вывода
-    byte R, R1;
+    byte R, R1;                 // Однобайтовые флажки
     bool l, l1;                 // l=false, если заголовки прочитаны
     double n;                   // Количество мс в отметке времени
     long nf;                    // Длина посылаемого файла/потока
@@ -83,8 +83,8 @@ namespace https2 {
       F.IP = F.IP1 = IP;                    // Предыдущий IP для сравнения на выходе и входе
       k1 = n2 = F.bu3;                      // Смещение для чтения 2-ой части заголовков
       k = n1 = F.bu1;                       // Смещение для чтения 1-ой части заголовков
-      R = R1 = F.b0;                        // Однобайтовые флажки
       heads.Clear();                        // Очистка блока заголовков
+      R = R1 = F.b0;                        // Однобайтовые флажки
       nbuf = F.bu4;                         // Число читаемых за один раз в заголовках байтов
       ts = null;                            // Задача запуска оброботчика
       l = true;                             // Заголовок пока не прочитан
@@ -125,12 +125,10 @@ namespace https2 {
             stream = sslStream;
           }catch (OperationCanceledException){
             stream?.Dispose();
-            client?.Dispose();
             stream = null;
             fIP();
           }catch(Exception){
             stream?.Dispose();
-            client?.Dispose();
             stream = null;
           }
         }else{
@@ -207,14 +205,16 @@ namespace https2 {
 
             }
           }
-          stream.Close();
+          stream?.Close();
         }
         client.Close();
 
         if(res.Length>F.i1 && F.log9>F.i0) {
           n = DateTime.UtcNow.Subtract(dt1).TotalMilliseconds;
-          string nStr = n > 9999 ? "****" : $"{n:0000}";
-          F.log2($"/{nStr} {IP} {j}\t{res}");
+          string nStr= n > 9999 ? "****" : $"{n:0000}";
+          string jfm = string.Format(F.itf, j);
+          if(R>F.b1) F.log2($"/{nStr} {IP}{jfm}/{m}\t{res}");
+          else       F.log2($"/{nStr} {IP}{jfm}  \t{res}");
         }
         Init();
       }
@@ -288,7 +288,7 @@ namespace https2 {
                   l1=true;
                 } else {
                   try {
-                    l1 = F.proc[i] == null || F.proc[i].HasExited;
+                    l1 = F.proc[m] == null || F.proc[m].HasExited;
                   } catch(Exception) {
                     l1 = true;
                   }
@@ -303,7 +303,7 @@ namespace https2 {
                   l1=true;
                 } else {
                   try {
-                    _= F.vfp[m].Name;
+                    _= F.vfp[m].ProcessID;
                     l1=false;
                   } catch(Exception) {
                     l1=true;
@@ -514,7 +514,7 @@ namespace https2 {
 
     bool filename2(){
       filename=F.valStr(ref Content_Disposition,"filename");
-      if(filename.Length>F.i0 || Content_Length>F.post){
+      if(filename.Length>F.i0 || Content_Length>(R==F.b2?F.post:F.maxVFP)){
         dirname=F.DirectorySessions+"/"+IP+"_"+point.Port.ToString();
         if(filename.Length==F.i0) filename=DateTime.Now.ToString("HHmmssfff");
         filename = dirname+"/"+HttpUtility.UrlDecode(filename);
@@ -576,7 +576,7 @@ namespace https2 {
       if(m < F.i0) {
 
         // Вывести сообщение об отсутствии интерпретатора
-        send_prg1($"There is no \"{F.Proc}\" on the server :(");
+        await send_txtAsync($"There is no \"{F.Proc}\" on the server :(");
         return;
       }
 
@@ -588,7 +588,7 @@ namespace https2 {
       if(m >= F.db) {
 
         // Вывести сообщение, что все доступные процессы интерпретатора заняты
-        send_prg1($"All {F.db} \"{F.Proc}\" processes are busy :(");
+        await send_txtAsync($"All {F.db} \"{F.Proc}\" processes are busy :(");
         return;
       }
 
@@ -609,8 +609,17 @@ namespace https2 {
         await send_stream(R);
       }
       F.proc[m].StandardInput.Close();
-
       if(eof>F.i0) {      // Если нет разрыва связи
+        if(exeCts == null || !exeCts.TryReset()) {
+          exeCts?.Dispose();
+          exeCts = new CancellationTokenSource();
+        }
+        exeCts.CancelAfter(F.i8);
+        using var registration = exeCts.Token.Register(() => {
+          try {
+            if(F.proc[m] != null && !F.proc[m].HasExited) F.proc[m].Kill();
+          } catch { }
+        });
 
         // Вывод полученных данных cgi-скрипта
         reso = F.OK+head;
@@ -620,51 +629,63 @@ namespace https2 {
 
         i1 = nbuf-k;    // До конца буфера осталось
 
-        // Прочитать i1 символов в buf начиная с n2+k
-        k1 = n2+k;
-        i1 = F.proc[m].StandardOutput.BaseStream.Read(buf, k1, i1);
+        string cErr= string.Empty;
+        try {
 
-        // Проверить код возврата
-        if(R1>F.b0) {
-          i=F.valInt(UTF.GetString(buf, k1, F.i4));
-          if(i>=100 && i<=599) {
-             i = Array.IndexOf(buf, F.b10, k1, i1);
-             if(i>k1) {
-                i++;
-                reso = F.H1+UTF.GetString(buf,k1,i-k1)+head;
-                k1 = i-UTF.GetByteCount(reso);
-                UTF.GetBytes(reso,F.i0,reso.Length,buf,k1);
-                i1 += n2-k1;
-             } else {
-                k1 = n2;
-             }
+          // Прочитать i1 символов в buf начиная с n2+k
+          k1 = n2+k;
+          i1 = await F.proc[m].StandardOutput.BaseStream.ReadAsync(buf.AsMemory(k1, i1),
+                     exeCts.Token);
+
+          // Проверить код возврата
+          if(R1>F.b0) {
+            i=F.valInt(UTF.GetString(buf, k1, F.i4));
+            if(i>=100 && i<=599) {
+               i = Array.IndexOf(buf, F.b10, k1, i1);
+               if(i>k1) {
+                  i++;
+                  reso = F.H1+UTF.GetString(buf,k1,i-k1)+head;
+                  k1 = i-UTF.GetByteCount(reso);
+                  UTF.GetBytes(reso,F.i0,reso.Length,buf,k1);
+                  i1 += n2-k1;
+               } else {
+                  k1 = n2;
+               }
+            } else {
+              k1 = n2;
+            }
           } else {
             k1 = n2;
           }
-        } else {
-          k1 = n2;
-        }
 
-        i1 += k;
-        while (i1>F.i0) {
-          t = stream.WriteAsync(buf.AsMemory(k1, i1));  // Асинхронно записать в поток
-          k1 = k1<n2? n2 : n1;                          // Следующее начало буфера
-          i1 = F.proc[m].StandardOutput.BaseStream.Read(buf, k1, nbuf);
-          await t;
+          i1 += k;
+          while (i1>F.i0) {
+            t = stream.WriteAsync(buf.AsMemory(k1, i1));  // Асинхронно записать в поток
+            k1 = k1<n2? n2 : n1;                          // Следующее начало буфера
+            i1 = await F.proc[m].StandardOutput.BaseStream.ReadAsync(buf.AsMemory(k1, nbuf),
+                 exeCts.Token);
+            await t;
+          }
+        } catch (OperationCanceledException) {
+          cErr= $"\r\n\r\nError in Pyton.exe: The maximum calculation duration of {
+                   F.i8} ms has been exceeded.";
+        } catch (Exception e) {
+          cErr= $"\r\n\r\nError in Python: {e.Message}";
+        } finally {
+          if(cErr.Length > F.i0) try { await stream.WriteAsync(UTF.GetBytes(cErr));
+                                 } catch { }
+          clear_cgi(m);
         }
+      } else {
+        clear_cgi(m);
       }
-      _= Task.Run(() => F.clear_cgi(m));
     }
 
     // Вывод текстового сообщения длиной до 1 буфера
-    void send_prg1(string s) {
+    ValueTask send_txtAsync(string s) {
       string z = F.OK+head+F.CT_T+"\r\n"+s;
       i = UTF.GetBytes(z,F.i0,z.Length,buf,F.i0);
-      stream.Write(buf,F.i0,i);
-    }
-
-    void clear_prg(int m) {
-      _= Task.Run(() => F.clear_prg(m));
+      return stream.WriteAsync(buf.AsMemory(F.i0,i));
     }
 
     async Task send_prg() {
@@ -673,14 +694,14 @@ namespace https2 {
       if(m < F.i0) {
 
         // Вывести сообщение об отсутствии VFP в реестре
-        send_prg1("\"vfoxpro.Engine\" is missing in the Windows registry :(");
+        await send_txtAsync("\"vfoxpro.Engine\" is missing in the Windows registry :(");
         return;
       }
 
       if(ts != null && await ts) m = F.db;
       if(m >= F.db) {
         // Вывести сообщение, что все процессы VFP заняты
-        send_prg1($"All {F.db.ToString()} VFoxPro.exe processes are busy :(");
+        await send_txtAsync($"All {F.db.ToString()} VFoxPro.exe processes are busy :(");
         return;
 
       } else {
@@ -703,44 +724,60 @@ namespace https2 {
       F.vfp[m].STD_INPUT= VFPstream.Length > F.i0? VFPstream.ToArray() : new byte[0];
       while (heads.Count>F.i1) F.vfp[m].SetVar(heads.Dequeue().Replace("-","_"),
              heads.Dequeue());
-      if (vfpCts == null || !vfpCts.TryReset()) {
-         vfpCts?.Dispose();
-         vfpCts = new CancellationTokenSource();
+      if (exeCts == null || !exeCts.TryReset()) {
+         exeCts?.Dispose();
+         exeCts = new CancellationTokenSource();
       }
       // Если выполнение prg не закончилось за 25 минут, то аварийно снять процесс
-      vfpCts.CancelAfter(F.i8);
+      exeCts.CancelAfter(F.i8);
 
       // Вывод полученных данных prg-скрипта
+      string sAll;
       try{
         var api= Task.Run(() => F.vfp[m].Eval());
-        var ret = await api.WaitAsync(vfpCts.Token);
+        var ret = await api.WaitAsync(exeCts.Token);
         if(ret.GetType().Name=="String" && ret.Length>5) {
            i = F.valInt(ret.Substring(F.i0,F.i4));
            if(i>=100 && i<=599) head = $"{F.H1}{ret}\r\n";
         } else {
           head = string.Concat(F.OK,head);
         }
-        Content_Length = (int)VFPstream.Length;
+        sAll= string.Concat(head, F.vfp[m].STD_OUTPUT);
       } catch(OperationCanceledException){
         F.killVFP(m);
-        head= $"{F.OK}{head}{F.CT_T}\r\nError in VFoxPro.exe: The maximum calculation duration of {
+        sAll= $"{F.OK}{head}{F.CT_T}\r\nError in VFoxPro.exe: The maximum calculation duration of {
                  F.i8} ms has been exceeded.";
         Content_Length = F.i0;
       } catch(Exception e){
-        head= $"{F.OK}{head}{F.CT_T}\r\nError in VFoxPro.exe: {e.Message}";
+        sAll= $"{F.OK}{head}{F.CT_T}\r\nError in VFoxPro.exe: {e.Message}";
         Content_Length = F.i0;
-      }
-      string sAll = string.Concat(head, F.vfp[m].STD_OUTPUT);
-      int i2 = F.vfpw.GetByteCount(sAll);
-      byte[] buffer = ArrayPool<byte>.Shared.Rent(i2);
-      try {
-        F.vfpw.GetBytes(sAll, F.i0, sAll.Length, buffer, F.i0);
-        t = stream.WriteAsync(buffer.AsMemory(F.i0, i2));
-        clear_prg(m); 
-        await t;
       } finally {
-        ArrayPool<byte>.Shared.Return(buffer);
+        clear_prg(m);
       }
+      byte[] buff = ArrayPool<byte>.Shared.Rent(sAll.Length);
+      i1= sAll.Length>33554432? sAll.Length/F.i3*F.i2 + F.i1 : sAll.Length;
+      try {
+        F.vfpw.GetBytes(sAll, F.i0, i1, buff, F.i0);
+        t= stream.WriteAsync(buff.AsMemory(F.i0, i1));
+        if(i1 == sAll.Length) {
+          await t;
+        } else {
+          i2= sAll.Length - i1;
+          F.vfpw.GetBytes(sAll, i1, i2, buff, i1);
+          await t;
+          await stream.WriteAsync(buff.AsMemory(i1, i2));
+        }
+      } finally {
+        ArrayPool<byte>.Shared.Return(buff);
+      }
+    }
+
+    void clear_cgi(int m) {
+      _= Task.Run(() => F.clear_cgi(m));
+    }
+
+    void clear_prg(int m) {
+      _= Task.Run(() => F.clear_prg(m));
     }
 
   }

@@ -1,7 +1,7 @@
 //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 //!!                                                     !!
 //!!   https.net сервер на C#.    Автор: A.Б.Корниенко   !!
-//!!   Головной блок              версия от 03.06.2026   !!
+//!!   Головной блок              версия от 05.06.2026   !!
 //!!                                                     !!
 //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
@@ -47,13 +47,14 @@ public class F : Form {
                  CT_T=CT+": text/plain\r\n", logX=hn+".x.log", logY=hn+".y.log",
                  OK= H1+"200 OK\r\n", UTF8="UTF-8", https="https", http="http",
            //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-                 ver="version 2.1.0", verD="June 2026";       //!!
+                 ver="version 2.1.2", verD="June 2026";       //!!
            //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     public const  byte b0=0, b1=1, b2=2, b3=3, b10=10, b13=13;
     public const  int i0=0, i1=1, i2=2, i3=3, i4=4, i8=1500000, i9=2147483647;
     public static int i, k, port, port1, post, st, qu, bu, bu0, bu1, bu2, bu3, bu4, bu8,
-                  db, db1, it, it1, log9, st1, qu1, tw, iIP, iIP1, nClients, logi=i0;
-    public static string IP, IP1, DocumentRoot, Folder=Thread.GetDomain().BaseDirectory,
+                  db, db1, it, it1, log9, st1, qu1, tw, iIP, iIP1, maxVFP, logi=i0,
+                  nClients;
+    public static string IP, IP1, itf, DocumentRoot, Folder=Thread.GetDomain().BaseDirectory,
                   DirectoryIndex, Proc, Args, Ext, logZ=string.Empty, DirectorySessions;
     static readonly Channel<string> logQueue = Channel.CreateUnbounded<string>(
                   new UnboundedChannelOptions { SingleReader = true });
@@ -244,13 +245,14 @@ public class F : Form {
       port=8443;
       bu=131072;
       Ext="pyc";
-      db1=it1=2;
       db=it=16;
       tw=5000;
       qu=100;
       st=100;
       st1=16;
       qu1=8;
+      db1=4;
+      it1=2;
 
       if(getArgs(args)){
         if(notQuit) {
@@ -301,12 +303,14 @@ public class F : Form {
                  session[j] = new Session(j); 
               });
               notExit=true;
-            }catch(Exception){
+            } catch {
               log("\tThere were problems when creating threads. Try updating Windows.");
             }
           }
         }
         if(notExit) {
+          // Вычислить размер поля и формата в журнал для записи номеров сессий
+          itf = $"{{0,{it.ToString().Length+1}}}";
 
           // Запустить экземпляр CGI
           cgib = new byte[it];
@@ -314,7 +318,7 @@ public class F : Form {
           cgi = new ProcessStartInfo[it];
           cgia = ! start_CGI(i0,b1);
           if(cgia) {
-            if(it1>0) {
+            if(it1>i0) {
               if(it1>db) it1=it;
               for (i=i1; i<it1; i++) if(start_CGI(i,b1)) break;
             } else {
@@ -338,14 +342,16 @@ public class F : Form {
             vfp = new dynamic[db];
             vfpb = new byte[db];
             vfpi = new int[db];
-            try{
+            try {
               vfp[i0] = Activator.CreateInstance(vfpa);
               vfpb[i0]=b1;
-            }catch(Exception){
+            } catch {
               vfpa = null;
             }
             if(vfpa!=null){
+
               VFP9= vfp[i0].Eval("sys(17)")=="Pentium";
+              maxVFP= VFP9? 16777184 : 67108832;
               if(start_VFP(i0,b1)) {
                 log("\tCOM server \"vfoxpro.Engine\" is not registered in Windows registry.");
                 vfpa= null;
@@ -363,7 +369,7 @@ public class F : Form {
 
           // Создать начальное количество COM Visual FoxPro
           if(vfpa!=null){
-            if(db1>0) {
+            if(db1>i0) {
               if(db1>db) db1=db;
               for (i=i1; i<db1; i++) if(start_VFP(i,b1)) break;
             } else {
@@ -382,8 +388,8 @@ public class F : Form {
             // Отобразить значок работы
             nIcon.Icon = ico;  // SystemIcons.Shield;
             nIcon.Text = $"{hs} is running";
-            string pp = (port > 0 && port1 > 0) ? "Both https- and http" :
-                        (port > 0 ? https : http);
+            string pp = (port > i0 && port1 > i0) ? "Both https- and http" :
+                        (port > i0 ? https : http);
             log($"\tThe {hs} {ver} is running.\r\n{leftSp}{pp}-sessions are available.");
 
           } else {
@@ -439,7 +445,7 @@ public class F : Form {
 
     static void cgiQuit(in int i) {
        try{ proc[i].StandardInput.WriteLine(string.Empty); }
-       catch(Exception) { }
+       catch { }
     }
 
     static void vfpQuit(in int i) {
@@ -568,7 +574,7 @@ public class F : Form {
           // Пытаемся ждать новые логи.
           if (!reader.WaitToReadAsync().AsTask().GetAwaiter().GetResult()) break;
         } 
-        catch (Exception) {
+        catch {
           break;             // Если канал закроют при выходе
         }
 
@@ -635,7 +641,7 @@ public class F : Form {
 
     public static int valInt(string x){
       int z;
-      try { z=int.Parse(x); } catch(Exception) { z=i9; }
+      try { z=int.Parse(x); } catch { z=i9; }
       return z;
     }
 
@@ -655,7 +661,7 @@ public class F : Form {
         proc[i] = Process.Start(cgi[i]);
         cgib[i] = b;
         l = false;
-      } catch(Exception) { }
+      } catch { }
       return l;
     }
 
@@ -677,18 +683,18 @@ public class F : Form {
         vfpi[m]= vfp[m].ProcessID;
         vfpb[m] = b;
         return false;
-      } catch(Exception) { }
+      } catch { }
       return true;
     }
 
     // Подготовим VFP к новым заданиям
     public static void clear_prg(int m) {
-      try{
+      try {
         if(vfp[m].clearPRG(VFPclr)) {
           vfpQuit(in m);
           _= start_VFP(m,b1);
         }
-      }catch(Exception){
+      } catch {
         vfpQuit(in m);
         vfpb[m]=b0;
       }
@@ -702,7 +708,7 @@ public class F : Form {
     // Аварийно снимаем COM-процесс
     public static void killVFP(int m) {
       try { Process.GetProcessById(vfpi[m]).Kill(); }
-      catch(Exception) { }
+      catch { }
       vfpQuit(in m);
     }
 
@@ -723,7 +729,7 @@ public class F : Form {
                  p.StandardOutput.BaseStream.Read(buf,i0,100));
         p.WaitForExit();
         ret = true;
-      } catch(Exception) {
+      } catch {
         output = "FAILED :-(";
         ret = false;
       }
