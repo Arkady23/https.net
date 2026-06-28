@@ -40,7 +40,6 @@ Parameters:                                                                  Val
              server is located and in the root folder containing the domains.
      -p      Port for https-connection. Zero to disable this connection.         8080
      -p1     Port for http-connection. Zero to disable this connection.          8443
-
      -b      Size of read/write buffers.                                         131072
      -q      Allowable number of requests in the queue.                          100
      -q1     Allowed number of requests in the queue per IP.                     16
