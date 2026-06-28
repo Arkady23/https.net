@@ -64,12 +64,12 @@ Parameters:                                                                  Val
              file. If it is exceeded, the request is placed in a file,
              the name of which is passed to the script in the environment
              variable POST_FILENAME. Other generated environment variables -
-             SERVER_PROTOCOL, SCRIPT_FILENAME, QUERY_STRING, HTTP_HEADERS,
-             REMOTE_ADDR. If the form-... directive is missing from the
-             request data, then incoming data stream will be placed entirely
-             in a file. This feature can be used to transfer files to the
-             server. In this case, the file name will be in the environment
-             variable POST_FILENAME.
+             SERVER_PROTOCOL, SCRIPT_FILENAME, QUERY_STRING, REMOTE_ADDR. If
+             the form-... directive is missing from the request data, then
+             incoming data stream will be placed entirely in a file. This
+             feature can be used to transfer files to the server. In this
+             case, the file name will be in the environment variable
+             POST_FILENAME.
      -proc   Script handler used. If necessary, you must also include            python.exe
              the full path to the executable file.
      -args   Additional parameters of the handler startup command line.
