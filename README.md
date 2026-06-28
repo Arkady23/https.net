@@ -43,12 +43,12 @@ Parameters:                                                                  Val
 
      -b      Size of read/write buffers.                                         131072
      -q      Allowable number of requests in the queue.                          100
-     -q1     Allowed number of requests in the queue per IP.                     8
+     -q1     Allowed number of requests in the queue per IP.                     16
      -s      Number of requests being processed at the same time. Maximum        100
              value is 32767.
-     -s1     Allowed number of simultaneously processed requests per IP.         16
+     -s1     Allowed number of simultaneously processed requests per IP.         4
      -w      Allowed time to reserve an open channel for request that did not    5
-             started. From 1 to 20 seconds.
+             started. From 1 to 10 seconds.
      -n      Maximum number of dynamically running interpreters. Processes       16
              are launched as needed depending on the number of concurrent
              requests. Maximum value is 32767.
