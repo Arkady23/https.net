@@ -16,7 +16,7 @@ The "-c filename.pfx" parameter specifies the name of the file containing your s
 Prg scripts are processed using COM technology and the included VFoxPro.exe repeater (32-bit), not CGI. COM objects are created as client requests are processed. If a Prg error occurs, a description of the error is returned to the script in the ERROR_MESS variable. Below are examples of a test py file, a Prg file, and the output from the test. Also included is the output from a similar Prg file, but with an error (the last line break ";" is missing). There is no need to worry about memory leaks in the VFoxPro.exe process; in case of significant leaks, the https.net server will soft-restart VFoxPro.exe.
 ```PowerShell
 PS D:\> D:\work\httpd\https.net.exe /?
-Multithreaded http.net server version 2.1.2, (C) a.kornienko.ru June 2026.
+Multithreaded http.net server version 2.1.3, (C) a.kornienko.ru June 2026.
 
 USAGE:
     https.net [Parameter1 Value1] [Parameter2 Value2] ...
@@ -118,9 +118,9 @@ sys.stdout.write("<h1>Привет мир из Python!</h1>\n" + \
 ### Пример Visual Foxpro скрипта test.prg
 ```xBase
 * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
-*  Тест. Вывод переменных окружения.                   версия 03.06.2026  *
+*  Тест. Вывод переменных окружения.                   версия 26.06.2026  *
 * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
-  CRLF= chr(13) + chr(10)
+  #defi CRLF 0h0D0A
   STD_INPUT= Strconv(env.STD_INPUT,11)
 
 * Параметр charset="windows-1251" означает, что кодировка передаваемого текста -
@@ -130,18 +130,18 @@ sys.stdout.write("<h1>Привет мир из Python!</h1>\n" + \
   env.STD_OUTPUT= env.STD_OUTPUT + ;
      "<h1>Привет мир из Visual FoxPro!</h1>" + ;
      "<h3>Переменные окружения:</h3>" + ;
-     "Accept_Language=" + iif(Type('env.Accept_Language')="C", ;
-                      env.Accept_Language,"") + ";<br>" + CRLF + ;
+     "Accept_Language=" + iif(Type('env.Accept_Language')="U", ;
+                      "",env.Accept_Language) + ";<br>" + CRLF + ;
      "SERVER_PROTOCOL=" + env.SERVER_PROTOCOL + ";<br>" + CRLF + ;
      "SCRIPT_FILENAME=" + env.SCRIPT_FILENAME + ";<br>" + CRLF + ;
      "POST_FILENAME=" + env.POST_FILENAME + ";<br>" + CRLF +;
      "QUERY_STRING=" + env.QUERY_STRING + ";<br>" + CRLF + ;
      "REMOTE_ADDR=" + env.REMOTE_ADDR + ";<br>" + CRLF + ;
-     "User_Agent=" + iif(Type('env.User_Agent')="C", ;
-                 env.User_Agent,"") + ";<br>" + CRLF + ;
+     "User_Agent=" + iif(Type('env.User_Agent')="U", ;
+                 "",env.User_Agent) + ";<br>" + CRLF + ;
      "STD_INPUT=" + env.STD_INPUT + ";<br>" + CRLF + ;
-     "Cookie=" + iif(Type('env.Cookie')="C",  ;
-             env.Cookie,"") + ";<br>" + CRLF +  ;
+     "Cookie=" + iif(Type('env.Cookie')="U",  ;
+             "",env.Cookie) + ";<br>" + CRLF +  ;
      "ERROR_CODE=" + tran(env.ERROR_CODE) + ";<br>" + CRLF
 
   IF env.ERROR_CODE > 0
