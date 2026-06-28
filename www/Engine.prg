@@ -1,39 +1,32 @@
 *!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-*!!  Р’Р·Р°РёРјРѕРѕР±РјРµРЅ РјРµР¶РґСѓ https.net СЃРµСЂРІРµСЂРѕРј Рё СЃРєСЂРёРїС‚Р°РјРё С‡РµСЂРµР·  !!
-*!!  COM EXE РїРѕРІС‚РѕСЂРёС‚РµР»СЊ                                     !!
-*!!  РђРІС‚РѕСЂС‹: Рђ.РљРѕСЂРЅРёРµРЅРєРѕ & AI Collaborator       03.06.2026  !!
+*!!  Взаимообмен между https.net сервером и скриптами через  !!
+*!!  COM EXE повторитель                                     !!
+*!!  Авторы: А.Корниенко & AI Collaborator       28.06.2026  !!
 *!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-*  РџСЂРѕС‚РѕРєРѕР» Р±С‹СЃС‚СЂРѕРіРѕ CGI РґР»СЏ Visual FoxPro: vfoxpro.Engine (C)
+*  Протокол быстрого CGI для Visual FoxPro: vfoxpro.Engine (C)
 * =============================================================
-* 1. C#-СЃРµСЂРІРµСЂ РґРµСЂР¶РёС‚  РёР·РѕР»РёСЂРѕРІР°РЅРЅС‹Р№ РїСѓР» РїСЂРѕС†РµСЃСЃРѕРІ  VFoxPro.exe
-*    (32-Р±РёС‚)
-* 2. РџРµСЂРµРјРµРЅРЅС‹Рµ СЃСЂРµРґС‹ Рё POST РґР°РЅРЅС‹Рµ РїРµСЂРµРґР°СЋС‚СЃСЏ Р±РµР· РґСѓР±Р»РёСЂРѕРІР°РЅРёСЏ
-*    РїР°РјСЏС‚Рё С‡РµСЂРµР· РµРґРёРЅС‹Р№ РіР»РѕР±Р°Р»СЊРЅС‹Р№ СѓРєР°Р·Р°С‚РµР»СЊ env.
-* 3. РњРµС‚РѕРґ Eval() Р°РІС‚РѕРјР°С‚РёС‡РµСЃРєРё  СЂР°Р·РґРµР»СЏРµС‚  РІС‹РїРѕР»РЅРµРЅРёРµ  РІРЅРµС€РЅРёС…
-*    .prg  СЃРєСЂРёРїС‚РѕРІ  СЃ  РёР·РѕР»СЏС†РёРµР№  РїСѓС‚РµР№  Рё  РІС‹Р·РѕРІС‹  РІРЅСѓС‚СЂРµРЅРЅРёС…
-*    С„СѓРЅРєС†РёР№ FoxPro.
-* 4. РџРѕСЃР»Рµ РєР°Р¶РґРѕРіРѕ Р·Р°РїСЂРѕСЃР°  РјРµС‚РѕРґ clearPRG() РІС‹РїРѕР»РЅСЏРµС‚ С‚РѕС‡РµС‡РЅС‹Р№
-*    СЃР±СЂРѕСЃ  СЂРµСЃСѓСЂСЃРѕРІ (CLOSE/CLEAR) Рё  РєРѕРЅС‚СЂРѕР»РёСЂСѓРµС‚  РїСѓР»  РїР°РјСЏС‚Рё
+* 1. C#-сервер держит  изолированный пул процессов  VFoxPro.exe
+*    (32-бит)
+* 2. Переменные среды и POST данные передаются без дублирования
+*    памяти через единый глобальный указатель env.
+* 3. Метод Eval() автоматически  разделяет  выполнение  внешних
+*    .prg  скриптов  с  изоляцией  путей  и  вызовы  внутренних
+*    функций FoxPro.
+* 4. После каждого запроса  метод clearPRG() выполняет точечный
+*    сброс  ресурсов (CLOSE/CLEAR) и  контролирует  пул  памяти
 *    SYS(1001).
-* 5. Р’ СЃР»СѓС‡Р°Рµ  Р·Р°РІРёСЃР°РЅРёСЏ  СЃРєСЂРёРїС‚Р° C#-СЃРµСЂРІРµСЂ РґРµР»Р°РµС‚ Р¶РµСЃС‚РєРёР№ Kill
-*    РїРѕ PID.
+* 5. В случае  зависания  скрипта C#-сервер делает жесткий Kill
+*    по PID.
 
 DEFINE CLASS Engine AS Custom OLEPUBLIC
-  * --- Р Р°Р±РѕС‡РёРµ СЃРІРѕР№СЃС‚РІР° CGI ---
-  STD_INPUT       = ""
-  STD_OUTPUT      = ""
-  QUERY_STRING    = ""
-  REMOTE_ADDR     = ""
-  SERVER_PROTOCOL = ""
-  SCRIPT_FILENAME = ""
-  POST_FILENAME   = ""
-  ERROR_MESS      = ""
-  ERROR_CODE      = 0
-  ProcessID       = 0
+  * --- Рабочие свойства CGI ---
+  ERROR_MESS = ""
+  ERROR_CODE = 0
+  ProcessID  = 0
     
-  * РҐСЂР°РЅРёРј СЃС‚Р°СЂС‚РѕРІС‹Р№ (РјР°РєСЃРёРјР°Р»СЊРЅС‹Р№) РѕР±СЉРµРј РґРѕСЃС‚СѓРїРЅРѕР№ РїР°РјСЏС‚Рё РїСѓР»Р°
-  * Рё РїРѕР»РЅС‹Р№ РїСѓС‚СЊ Рє РґРѕРїСѓСЃС‚РёРјРѕР№ РїСЂРѕРіСЂР°РјРјРµ РѕС‡РёСЃС‚РєРё РјСѓСЃРѕСЂР°
+  * Храним стартовый (максимальный) объем доступной памяти пула
+  * и полный путь к допустимой программе очистки мусора
   PROTECTED InitialAvailablePool, VFPclear
 
   PROCEDURE Init
@@ -41,11 +34,11 @@ DEFINE CLASS Engine AS Custom OLEPUBLIC
 
     LOCAL ret
 
-    * РЈСЃС‚Р°РЅР°РІР»РёРІР°РµРј РЅР°СЃС‚СЂРѕР№РєРё СЃСЂРµРґС‹ РїРѕ СѓРјРѕР»С‡Р°РЅРёСЋ
+    * Устанавливаем настройки среды по умолчанию
     THIS.SetDefaultEnvironment()
 
     TRY
-      =SYS(1104)  && Р§РёСЃС‚РёРј Р±СѓС„РµСЂС‹
+      =SYS(1104)  && Чистим буферы
       THIS.InitialAvailablePool = VAL(SYS(1001))
       THIS.VFPclear = ADDBS(JUSTPATH(_VFP.ServerName)) + "VFPclear.prg"
       THIS.ProcessID = _VFP.ProcessId
@@ -56,12 +49,25 @@ DEFINE CLASS Engine AS Custom OLEPUBLIC
     RETURN m.ret
   ENDPROC
 
+  * Добавляем данные в STD_INPUT
+  PROCEDURE STD_INPUTADD(Value)
+    IF VARTYPE(THIS.STD_INPUT)="U"
+      SetVar("STD_INPUT", m.Value)
+    ELSE
+      THIS.STD_INPUT = THIS.STD_INPUT + m.Value
+    ENDIF
+  ENDPROC
+
+  * Отдаем массив байт
+  PROCEDURE STD_OUTBIN()
+    RETURN CREATEBINARY(THIS.STD_OUTPUT)
+  ENDPROC
+
   PROCEDURE SetVar(VarName, Value)
-    VarName = UPPER(ALLTRIM(VarName))
     THIS.AddProperty(VarName, Value)
   ENDPROC
 
-  * РњРµС‚РѕРґ РґР»СЏ РІС‹РїРѕР»РЅРµРЅРёСЏ Р»СЋР±С‹С… Р°РґРјРёРЅРёСЃС‚СЂР°С‚РёРІРЅС‹С… РєРѕРјР°РЅРґ FoxPro
+  * Метод для выполнения любых административных команд FoxPro
   PROCEDURE DoCmd(CommandText)
     TRY
       &CommandText
@@ -70,10 +76,10 @@ DEFINE CLASS Engine AS Custom OLEPUBLIC
     ENDTRY
   ENDPROC
 
-  * РЈРЅРёРІРµСЂСЃР°Р»СЊРЅС‹Р№ РјРµС‚РѕРґ РІС‹С‡РёСЃР»РµРЅРёСЏ РІС‹СЂР°Р¶РµРЅРёР№ Рё Р·Р°РїСѓСЃРєР° prg
+  * Универсальный метод вычисления выражений и запуска prg
   PROCEDURE Eval(res)
-    LOCAL i, cPath, l, prg, ret
-    IF TYPE("m.res") = "C"
+    LOCAL i, cPath, l, prg, n, ret, heads[1]
+    IF VARTYPE(m.res) = "C"
       i = -1
     ELSE
       PUBLIC env
@@ -84,11 +90,14 @@ DEFINE CLASS Engine AS Custom OLEPUBLIC
     ENDI
 
     TRY
-      IF m.i > 0
-        * РЎР»СѓС‡Р°Р№ РїРµСЂРµРґР°С‡Рё prg (РЅРµ СѓРєР°Р·Р°РЅ РїР°СЂР°РјРµС‚СЂ)
-        cPath = '"'+left(THIS.SCRIPT_FILENAME, m.i)+'"'
+      IF m.i > 0    && Случай передачи prg (не указан параметр)
+        cPath = '"'+LEFT(THIS.SCRIPT_FILENAME, m.i)+'"'
         SET DEFA TO (m.cPath)
-
+        n = ALINES(heads, THIS.HTTP_HEADERS, 4, 0h0D, 0h0A)
+        FOR i = 1 TO m.n
+          THIS.AddProperty(ALLT(CHRTRAN(STREXTRACT(heads[i],"",":"),"-", "_")), ;
+                           ALLT(STREXTRACT(heads[i],":"), 0, 0h20))
+        ENDFOR
       ENDI
       ret = EVALUATE(m.res)
     CATCH TO oException
@@ -109,8 +118,8 @@ DEFINE CLASS Engine AS Custom OLEPUBLIC
   PROCEDURE clearPRG(isCustomClear)
     LOCAL i, PropCount, PropName, CurrentAvailablePool
 
-    * --- 1. Р РђРЎРЁРР Р•РќРР• Р±РµР· РѕС‡РёСЃС‚РєРё СЏРґСЂР° VFP ---
-    * Р•СЃР»Рё C#-СЃРµСЂРІРµСЂ РїСЂРёРЅСѓРґРёС‚РµР»СЊРЅРѕ РїРµСЂРµРґР°Р» .T., Р·Р°РїСѓСЃРєР°РµРј СЃРєСЂРёРїС‚
+    * --- 1. РАСШИРЕНИЕ без очистки ядра VFP ---
+    * Если C#-сервер принудительно передал .T., запускаем скрипт
     IF m.isCustomClear
       TRY
         DO (THIS.VFPclear)
@@ -128,36 +137,25 @@ DEFINE CLASS Engine AS Custom OLEPUBLIC
         ENDI
       ENDTRY
 
-    * --- 2. РЎРРЎРўР•РњРќРђРЇ РћР§РРЎРўРљРђ РЇР”Р Рђ (РїСЂРё РѕС‚СЃСѓС‚СЃС‚РІРёРё VFPclear.prg) ---
+    * --- 2. СИСТЕМНАЯ ОЧИСТКА ЯДРА (при отсутствии VFPclear.prg) ---
     ELSE
       THIS.DefaultClear()
     ENDIF
 
-    * --- 3. Р’РѕСЃСЃС‚Р°РЅР°РІР»РёРІР°РµРј РЅР°СЃС‚СЂРѕР№РєРё СЃСЂРµРґС‹ РїРѕ СѓРјРѕР»С‡Р°РЅРёСЋ
+    * --- 3. Восстанавливаем настройки среды по умолчанию
     THIS.SetDefaultEnvironment()
 
-    * --- 4. РЎРРЎРўР•РњРќРђРЇ РћР§РРЎРўРљРђ Р”РРќРђРњРР§Р•РЎРљРРҐ РЎР’РћР™РЎРўР’ ---
+    * --- 4. СИСТЕМНАЯ ОЧИСТКА ДИНАМИЧЕСКИХ СВОЙСТВ ---
     PropCount = AMEMBERS(Props, THIS, 0)
     FOR i = 1 TO m.PropCount
-       PropName = UPPER(Props[m.i])
-       IF PEMSTATUS(THIS, m.PropName, 4) AND ;
-          NOT INLIST(m.PropName, "STD_INPUT", "STD_OUTPUT", "QUERY_STRING", "REMOTE_ADDR", ;
-                    "SERVER_PROTOCOL", "SCRIPT_FILENAME", "POST_FILENAME", "ERROR_MESS", ;
-                    "ERROR_CODE", "PROCESSID")
+       PropName = Props[m.i]
+       IF PEMSTATUS(THIS, m.PropName, 4) AND NOT INLIST(m.PropName, ;
+               "ERROR_MESS", "ERROR_CODE", "PROCESSID")
           THIS.RemoveProperty(m.PropName)
        ENDIF
     ENDFOR
-    THIS.STD_INPUT       = ""
-    THIS.STD_OUTPUT      = ""
-    THIS.QUERY_STRING    = ""
-    THIS.REMOTE_ADDR     = ""
-    THIS.SERVER_PROTOCOL = ""
-    THIS.SCRIPT_FILENAME = ""
-    THIS.POST_FILENAME   = ""
-    THIS.ERROR_MESS      = ""
-    THIS.ERROR_CODE      = 0
 
-    * --- 5. РџР РћР’Р•Р РЇР•Рњ РќРђ Р”РћРџРЈРЎРўРРњРЈР® РЈРўР•Р§РљРЈ РџРђРњРЇРўР ---
+    * --- 5. ПРОВЕРЯЕМ НА ДОПУСТИМУЮ УТЕЧКУ ПАМЯТИ ---
     =SYS(1104) 
     CurrentAvailablePool = VAL(SYS(1001))
     IF m.CurrentAvailablePool < (THIS.InitialAvailablePool * 0.5)
@@ -166,12 +164,12 @@ DEFINE CLASS Engine AS Custom OLEPUBLIC
     RETURN .F.
   ENDPROC
 
-  * Р’РЅСѓС‚СЂРµРЅРЅРёР№ РјРµС‚РѕРґ РІРѕСЃСЃС‚Р°РЅРѕРІР»РµРЅРёСЏ РЅР°СЃС‚СЂРѕРµРє РїРѕ СѓРјРѕР»С‡Р°РЅРёСЋ
+  * Внутренний метод восстановления настроек по умолчанию
   PROTECTED PROCEDURE SetDefaultEnvironment
-    * РџРѕРґС‚РІРµСЂР¶РґР°РµРј СЂРµР¶РёРј Р±РµСЃРїРёР»РѕС‚РЅРѕРіРѕ СЃРµСЂРІРµСЂР°
+    * Подтверждаем режим беспилотного сервера
     =SYS(2335, 0) 
     
-    * Р‘Р°Р·РѕРІС‹Рµ Р±РµР·РѕРїР°СЃРЅС‹Рµ СЃРёСЃС‚РµРјРЅС‹Рµ РЅР°СЃС‚СЂРѕР№РєРё
+    * Базовые безопасные системные настройки
     SET NEAR ON
     SET TALK OFF
     SET EXACT ON
@@ -180,20 +178,24 @@ DEFINE CLASS Engine AS Custom OLEPUBLIC
     SET DELETED ON
     SET MARK TO '.'
     SET HOURS TO 24
+    THIS.ERROR_CODE = 0
+    THIS.ERROR_MESS = ""
+    THIS.AddProperty("STD_INPUT", "")
+    THIS.AddProperty("STD_OUTPUT", "")
   ENDPROC
 
   PROTECTED PROCEDURE DefaultClear()
     TRY
-      CLEAR EVENTS        && РћСЃС‚Р°РЅРѕРІРєР° РѕС‡РµСЂРµРґРµР№ СЃРѕР±С‹С‚РёР№
-      CLOSE DATABASES ALL && Р‘РµР·РѕРїР°СЃРЅРѕРµ Р·Р°РєСЂС‹С‚РёРµ С‚Р°Р±Р»РёС† Рё СЃР±СЂРѕСЃ Р±СѓС„РµСЂРѕРІ РґР°РЅРЅС‹С…
-      CLOSE ALL           && Р—Р°РєСЂС‹С‚РёРµ РЅРёР·РєРѕСѓСЂРѕРІРЅРµРІС‹С… С„Р°Р№Р»РѕРІ Рё С‚РµРєСЃС‚РѕРІС‹С… РїРѕС‚РѕРєРѕРІ
-      CLEAR PROGRAM       && РћС‡РёСЃС‚РєР° РєСЌС€Р° СЃРєРѕРјРїРёР»РёСЂРѕРІР°РЅРЅС‹С… prg РёР· РїР°РјСЏС‚Рё
-      CLEAR MEMORY        && РћС‡РёСЃС‚РєР° Р»РѕРєР°Р»СЊРЅРѕР№ РїР°РјСЏС‚Рё Р±РµР· РїРѕРІСЂРµР¶РґРµРЅРёСЏ СЃРІРѕР№СЃС‚РІ РєР»Р°СЃСЃР°
+      CLEAR EVENTS        && Остановка очередей событий
+      CLOSE DATABASES ALL && Безопасное закрытие таблиц и сброс буферов данных
+      CLOSE ALL           && Закрытие низкоуровневых файлов и текстовых потоков
+      CLEAR PROGRAM       && Очистка кэша скомпилированных prg из памяти
+      CLEAR MEMORY        && Очистка локальной памяти без повреждения свойств класса
     CATCH
     ENDTRY
   ENDPROC
 
-  * Р’РЅСѓС‚СЂРµРЅРЅРёР№ РјРµС‚РѕРґ С†РµРЅС‚СЂР°Р»РёР·РѕРІР°РЅРЅРѕРіРѕ Р»РѕРіРёСЂРѕРІР°РЅРёСЏ РёСЃРєР»СЋС‡РµРЅРёР№ TRY-CATCH
+  * Внутренний метод централизованного логирования исключений TRY-CATCH
   PROTECTED PROCEDURE SetCatchError(oException, ContextText)
     THIS.ERROR_CODE = oException.ErrorNo
     THIS.ERROR_MESS = "VFP " + m.ContextText + " ERROR: " + oException.Message + ;
