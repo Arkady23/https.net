@@ -41,9 +41,9 @@ Parameters:                                                                  Val
      -p      Port for https-connection. Zero to disable this connection.         8080
      -p1     Port for http-connection. Zero to disable this connection.          8443
      -b      Size of read/write buffers.                                         131072
-     -q      Allowable number of requests in the queue.                          5000
+     -q      Allowable number of requests in the queue.                          1500
      -q1     Allowed number of requests in the queue per IP.                     16
-     -s      Number of requests being processed at the same time. Maximum        1000
+     -s      Number of requests being processed at the same time. Maximum        500
              value is 32767.
      -s1     Allowed number of simultaneously processed requests per IP.         4
      -w      Allowed time to reserve an open channel for request that did not    5
