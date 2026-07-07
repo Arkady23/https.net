@@ -1,0 +1,185 @@
+*!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+*!!  Взаимообмен между https.net сервером и скриптами через  !!
+*!!  COM EXE повторитель                                     !!
+*!!  Авторы: А.Корниенко & AI Collaborator       06.07.2026  !!
+*!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+*  Протокол быстрого CGI для Visual FoxPro9: FoxPro9.Shell (C)
+* =============================================================
+* 1. C#-сервер держит  изолированный пул процессов  VFoxPro.exe
+*    (32-бит)
+* 2. Переменные среды и POST данные передаются без дублирования
+*    памяти через единый глобальный указатель env.
+* 3. Метод Eval() автоматически  разделяет  выполнение  внешних
+*    .prg  скриптов  с  изоляцией  путей  и  вызовы  внутренних
+*    функций FoxPro.
+* 4. После каждого запроса  метод clearPRG() выполняет точечный
+*    сброс  ресурсов (CLOSE/CLEAR) и  контролирует  пул  памяти
+*    SYS(1001).
+* 5. В случае  зависания  скрипта C#-сервер делает жесткий Kill
+*    по PID.
+
+DEFINE CLASS Shell AS Custom OLEPUBLIC
+  * --- Рабочие свойства CGI ---
+  STD_INPUT = ""
+  STD_OUTPUT = ""
+  ERROR_MESS = ""
+  ERROR_CODE = 0
+  ProcessID = 0
+    
+  * Храним стартовый (максимальный) объем доступной памяти пула
+  * и полный путь к допустимой программе очистки мусора
+  PROTECTED InitialAvailablePool, VFPclear
+
+  PROCEDURE Init
+    * Устанавливаем настройки среды по умолчанию
+    THIS.SetDefaultEnvironment()
+
+    =SYS(1104)      && Чистим буферы
+    THIS.InitialAvailablePool = VAL(SYS(1001))
+    THIS.VFPclear = ADDBS(JUSTPATH(_VFP.ServerName)) + "VFPclear.prg"
+    THIS.ProcessID = _VFP.ProcessId
+  ENDPROC
+
+  * Добавляем данные в STD_INPUT
+  PROCEDURE STD_INPUTADD(Value)
+    THIS.STD_INPUT = THIS.STD_INPUT + m.Value
+  ENDPROC
+
+  * Отдаем массив байт
+  PROCEDURE STD_OUTBIN
+    RETURN CAST(THIS.STD_OUTPUT AS W)
+  ENDPROC
+
+  PROCEDURE SetVar(VarName, Value)
+    THIS.AddProperty(VarName, Value)
+  ENDPROC
+
+  * Универсальный метод вычисления выражений и запуска prg
+  PROCEDURE Eval(res)
+    LOCAL i, cPath, l, prg, n, ret, heads[1]
+    IF VARTYPE(m.res) = "C"
+      i = -1
+    ELSE
+      PUBLIC env
+      env = THIS
+      i = rat("/", THIS.SCRIPT_FILENAME)
+      prg = subs(THIS.SCRIPT_FILENAME, m.i+1)
+      res = JUSTSTEM(m.prg)+"()"
+    ENDI
+
+    TRY
+      IF m.i > 0    && Случай передачи prg (не указан параметр)
+        cPath = '"'+LEFT(THIS.SCRIPT_FILENAME, m.i)+'"'
+        SET DEFA TO (m.cPath)
+        n = ALINES(heads, THIS.HTTP_HEADERS, 4, 0h0D, 0h0A)
+        FOR i = 1 TO m.n
+          THIS.AddProperty(ALLT(CHRTRAN(STREXTRACT(heads[i],"",":"),"-", "_")), ;
+                           ALLT(STREXTRACT(heads[i],":"), 0, 0h20))
+        ENDFOR
+      ENDI
+      ret = EVALUATE(m.res)
+    CATCH TO oException
+      IF m.i > 0 AND oException.ErrorNo = 1
+        TRY
+          COMPILE (m.prg) NODEBUG
+          ret = EVALUATE(m.res)
+        CATCH TO oException
+          THIS.SetCatchError(m.oException, "EVAL")
+          ret = ""
+        ENDTRY
+      ELSE
+        THIS.SetCatchError(m.oException, "EVAL")
+        ret = ""
+      ENDI
+    ENDTRY
+    RETURN m.ret
+  ENDPROC
+        
+  PROCEDURE clearPRG(isCustomClear)
+    LOCAL i, PropCount, PropName, CurrentAvailablePool, Props[1]
+
+    * --- 1. РАСШИРЕНИЕ без очистки ядра VFP ---
+    * Если принято .T., запускаем скрипт VFPclear.prg
+    IF m.isCustomClear
+      TRY
+        DO (THIS.VFPclear)
+      CATCH TO oException
+        IF oException.ErrorNo = 1
+          TRY
+            COMPILE (THIS.VFPclear) NODEBUG
+            DO (THIS.VFPclear)
+          CATCH TO oException
+            THIS.SetCatchError(m.oException, "CUSTOM CLEAR")
+            THIS.DefaultClear()
+          ENDTRY
+        ELSE
+          THIS.DefaultClear()
+        ENDI
+      ENDTRY
+
+    * --- 2. СИСТЕМНАЯ ОЧИСТКА ЯДРА (при отсутствии VFPclear.prg) ---
+    ELSE
+      THIS.DefaultClear()
+    ENDIF
+
+    * --- 3. Восстанавливаем настройки среды по умолчанию
+    THIS.SetDefaultEnvironment()
+
+    * --- 4. СИСТЕМНАЯ ОЧИСТКА ДИНАМИЧЕСКИХ СВОЙСТВ ---
+    PropCount = AMEMBERS(Props, THIS, 0)
+    FOR i = 1 TO m.PropCount
+       PropName = Props[m.i]
+       IF PEMSTATUS(THIS, m.PropName, 4) AND NOT INLIST(m.PropName, "PROCESSID", ;
+                            "STD_INPUT", "STD_OUTPUT", "ERROR_MESS", "ERROR_CODE")
+          THIS.RemoveProperty(m.PropName)
+       ENDIF
+    ENDFOR
+
+    * --- 5. ПРОВЕРЯЕМ НА ДОПУСТИМУЮ УТЕЧКУ ПАМЯТИ ---
+    =SYS(1104) 
+    CurrentAvailablePool = VAL(SYS(1001))
+    IF m.CurrentAvailablePool < (THIS.InitialAvailablePool * 0.5)
+       RETURN .T.  
+    ENDIF
+    RETURN .F.
+  ENDPROC
+
+  * Внутренний метод восстановления настроек по умолчанию
+  PROTECTED PROCEDURE SetDefaultEnvironment
+    =SYS(2335,0)    && Подтверждаем режим беспилотного сервера
+    =SYS(3101,0)    && Отказываемся преобразовывать кодировки через COM
+    
+    * Базовые безопасные системные настройки
+    SET NEAR ON
+    SET TALK OFF
+    SET EXACT ON
+    SET NOTIFY OFF
+    SET CENTURY ON
+    SET DELETED ON
+    SET MARK TO '.'
+    SET HOURS TO 24
+    THIS.ERROR_CODE = 0
+    STOR "" TO THIS.ERROR_MESS, THIS.STD_INPUT, THIS.STD_OUTPUT
+  ENDPROC
+
+  PROTECTED PROCEDURE DefaultClear
+    TRY
+      CLEAR EVENTS        && Остановка очередей событий
+      CLOSE DATABASES ALL && Безопасное закрытие таблиц и сброс буферов данных
+      CLOSE ALL           && Закрытие низкоуровневых файлов и текстовых потоков
+      CLEAR PROGRAM       && Очистка кэша скомпилированных prg из памяти
+      CLEAR MEMORY        && Очистка локальной памяти без повреждения свойств класса
+    CATCH
+    ENDTRY
+  ENDPROC
+
+  * Внутренний метод централизованного логирования исключений TRY-CATCH
+  PROTECTED PROCEDURE SetCatchError(oException, ContextText)
+    THIS.ERROR_CODE = oException.ErrorNo
+    THIS.ERROR_MESS = m.ContextText + " ERROR: " + oException.Message + ;
+                      " (Code: " + STR(oException.ErrorNo) + ")" + ;
+                      " in " + ALLTRIM(oException.Procedure) + ;
+                      " Line: " + STR(oException.LineNo)
+  ENDPROC
+ENDDEFINE
