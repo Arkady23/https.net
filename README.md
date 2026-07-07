@@ -42,10 +42,10 @@ Parameters:                                                                  Val
      -p1     Port for http-connection. Zero to disable this connection.          8443
      -b      Size of read/write buffers.                                         131072
      -q      Allowable number of requests in the queue.                          1500
-     -q1     Allowed number of requests in the queue per IP.                     16
+     -q1     Allowed number of requests in the queue per IP.                     32
      -s      Number of requests being processed at the same time. Maximum        500
              value is 32767.
-     -s1     Allowed number of simultaneously processed requests per IP.         4
+     -s1     Allowed number of simultaneously processed requests per IP.         16
      -w      Allowed time to reserve an open channel for request that did not    5
              started. From 1 to 10 seconds.
      -n      Maximum number of dynamically running interpreters. Processes       16
@@ -310,6 +310,6 @@ Statistics        Avg      Stdev        Max
 2.1.1 https.net, 0.0.1 VFoxPro(Engine) June 2026. В связи с тем, что расширение VFPclear.prg ранее располагалось в папке с vfp9.exe/vfpa.exe, а с переходом на Runtime это расширение переехало в эту папку, путь в обоих программах заменён на путь расположения самого VFoxPro.exe.  
 2.1.2 June 2026. Исправлены замеченные ошибки. В журнал добавлена информация об обработчике (Python и VFoxPro). Дополнительно к номеру сессии через дробь выводится номер обработчика.  
 2.1.3-2.1.5 June 2026. В журнал добавлена информация о типе соединения (http/https) и выровнены колонки. Добавлена поддержка IPv6. Очень значительные исправления от ИИ. ИИ считает, что для сервера необходимо свести к минимуму использование строк типа string. Кроме того ИИ убрал копирование трафика, теперь трафик передается прямо из входного потока. Но не все предложения ИИ оказываются эфективными. Например, в результате рекомендуемого ИИ отказа запуска COM VFoxPro через Task.Run, была весьма сильно потеряна производительность ответов prg-скриптов. Поэтому Task.Run были возвращены на прежнее место. Объем текста сильно возрос. Там где раньше просто складывались несколько строк, теперь присутствует сложная логика с арендой памяти и копированием туда байт-кодов бывших строк. Возможно в будущем эти места можно будет как-то унифицировать и упростить.  
-2.2.0 July 2026. Изменения в названии COM, теперь исполняемый файл FoxPro9.exe, а название COM foxpro9.Shell. Добавлен секретный параметр для ультра ускоренной отправки файла в ответе, просто в строке со статусом ответа надо добавить параметр filename. Например:  
+2.2.0 July 2026. Изменения в названии COM, теперь исполняемый файл FoxPro9.exe, а название COM foxpro9.Shell. Добавлен секретный параметр для ультра быстрой отправки файла в ответе, просто в строке со статусом ответа надо добавить параметр filename. Например:  
 200 OK; filename=D:/myFolder/myFile.pdf  
-Передаваемый статус будет 200 OK, а в конец ответа в трафик будет добавлено содержимое файла D:/myFolder/myFile.pdf. Никакие другие заголовки не вставляются.  
+Передаваемый статус будет 200 OK, а в конец ответа в трафик будет добавлено содержимое файла D:/myFolder/myFile.pdf. Если к файлу нужны какие-то сопровождающие заголовки, то их должен вставить сам скрипт.  
