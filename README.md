@@ -55,7 +55,7 @@ Parameters:                                                                  Val
      -f      Maximum number of dynamically launched VFoxPro.exe instances.       16
              VFoxPro.exe COMs are created as needed, depending on the number
              of concurrent requests. The maximum value is 32767.
-     -f1     The initial number of pre-created VFoxPro.exe COMs.                 4
+     -f1     The initial number of pre-created VFoxPro.exe COMs.                 2
      -log    Size of the query log in rows. The log consists of two              10000
              interleaved versions http.net.x.log and http.net.y.log. If the
              size is set to less than 80, then the log is not kept.
@@ -119,7 +119,7 @@ sys.stdout.write("<h1>Привет мир из Python!</h1>\n" + \
 * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
 *  Тест. Вывод переменных окружения.                   версия 26.06.2026  *
 * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
-  #defi CRLF 0h0D0A
+  #DEFINE CRLF 0h0D0A
   STD_INPUT= Strconv(env.STD_INPUT,11)
 
 * Параметр charset="windows-1251" означает, что кодировка передаваемого текста -
@@ -129,17 +129,17 @@ sys.stdout.write("<h1>Привет мир из Python!</h1>\n" + \
   env.STD_OUTPUT= env.STD_OUTPUT + ;
      "<h1>Привет мир из Visual FoxPro!</h1>" + ;
      "<h3>Переменные окружения:</h3>" + ;
-     "Accept_Language=" + iif(Type('env.Accept_Language')="U", ;
+     "Accept_Language=" + iif(vartype(env.Accept_Language)="U", ;
                       "",env.Accept_Language) + ";<br>" + CRLF + ;
      "SERVER_PROTOCOL=" + env.SERVER_PROTOCOL + ";<br>" + CRLF + ;
      "SCRIPT_FILENAME=" + env.SCRIPT_FILENAME + ";<br>" + CRLF + ;
      "POST_FILENAME=" + env.POST_FILENAME + ";<br>" + CRLF +;
      "QUERY_STRING=" + env.QUERY_STRING + ";<br>" + CRLF + ;
      "REMOTE_ADDR=" + env.REMOTE_ADDR + ";<br>" + CRLF + ;
-     "User_Agent=" + iif(Type('env.User_Agent')="U", ;
+     "User_Agent=" + iif(varype(env.User_Agent)="U", ;
                  "",env.User_Agent) + ";<br>" + CRLF + ;
      "STD_INPUT=" + env.STD_INPUT + ";<br>" + CRLF + ;
-     "Cookie=" + iif(Type('env.Cookie')="U",  ;
+     "Cookie=" + iif(vartype(env.Cookie)="U",  ;
              "",env.Cookie) + ";<br>" + CRLF +  ;
      "ERROR_CODE=" + tran(env.ERROR_CODE) + ";<br>" + CRLF
 
@@ -310,3 +310,6 @@ Statistics        Avg      Stdev        Max
 2.1.1 https.net, 0.0.1 VFoxPro(Engine) June 2026. В связи с тем, что расширение VFPclear.prg ранее располагалось в папке с vfp9.exe/vfpa.exe, а с переходом на Runtime это расширение переехало в эту папку, путь в обоих программах заменён на путь расположения самого VFoxPro.exe.  
 2.1.2 June 2026. Исправлены замеченные ошибки. В журнал добавлена информация об обработчике (Python и VFoxPro). Дополнительно к номеру сессии через дробь выводится номер обработчика.  
 2.1.3-2.1.5 June 2026. В журнал добавлена информация о типе соединения (http/https) и выровнены колонки. Добавлена поддержка IPv6. Очень значительные исправления от ИИ. ИИ считает, что для сервера необходимо свести к минимуму использование строк типа string. Кроме того ИИ убрал копирование трафика, теперь трафик передается прямо из входного потока. Но не все предложения ИИ оказываются эфективными. Например, в результате рекомендуемого ИИ отказа запуска COM VFoxPro через Task.Run, была весьма сильно потеряна производительность ответов prg-скриптов. Поэтому Task.Run были возвращены на прежнее место. Объем текста сильно возрос. Там где раньше просто складывались несколько строк, теперь присутствует сложная логика с арендой памяти и копированием туда байт-кодов бывших строк. Возможно в будущем эти места можно будет как-то унифицировать и упростить.  
+2.2.0 July 2026. Изменения в названии COM, теперь испольняемый файл FoxPro9.exe, а название COM foxpro9.Shell. Добавлен секретный параметр для ускоренной отправки файла в ответе, просто в строке со статусом ответа надо добавить параметр filename. Например:  
+200 OK; filename=D:/myFolder/myFile.pdf  
+Передаваемый статус будет 200 OK, а в конец ответа в трафик будет добавлено содержимое файла D:/myFolder/myFile.pdf. Никакие другие заголовки не вставляются.  
