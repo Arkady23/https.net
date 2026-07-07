@@ -7,16 +7,16 @@ The root folder for domains (www by default) should contain folders correspondin
 
 The number of threads should not be set to the maximum possible. The default is 100. Watch the log, the last numeric field in each entry shows the number of the running thread. Over time, you will understand how many simultaneous threads you have in use. This value is probably significantly less than 100.  
 
-The https.net server only supports fast CGI, using a simple script based on quickstart technology. A Python example of this script, initcgi.py, is provided in the repository's www folder. The server "softly" launches the initCGI script not when a client request arrives, but after sending the next response. This initial script can be implemented in most modern interpreted languages. This does not apply to prg scripts, for which the vfoxpro.Engine COM server performs the initCGI role.  
+The https.net server only supports fast CGI, using a simple script based on quickstart technology. A Python example of this script, initcgi.py, is provided in the repository's www folder. The server "softly" launches the initCGI script not when a client request arrives, but after sending the next response. This initial script can be implemented in most modern interpreted languages. This does not apply to prg scripts, for which the foxpro9.Shell COM server performs the initCGI role.  
 
 By default, the https.net server will process Visual FoxPro and Python scripts. However, in the server settings, you can change the script extension and handler to any other you prefer—the popular PHP or "dotnet fsi," which runs F# scripts with the .fsx extension.  
 
 The "-c filename.pfx" parameter specifies the name of the file containing your site's certificate. You can obtain such a file for free, for example, using the wacs.exe console program from the official website win-acme.com. To obtain a certificate for a second-level domain and all its third-level subdomains, you must specify two hosts in the wacs.exe responses, for example, kornienko.ru and *.kornienko.ru. In this case, you will need to confirm twice (for each host separately) that you are the owner/administrator of these hosts using DNS-1. If confirmation is successful, you will receive a single certificate file for both hosts with encryption keys. You do not need to set a certificate password; the current version of the servers does not support certificate passwords.  
 
-Prg scripts are processed using COM technology and the included VFoxPro.exe repeater (32-bit), not CGI. COM objects are created as client requests are processed. If a Prg error occurs, a description of the error is returned to the script in the ERROR_MESS variable. Below are examples of a test py file, a Prg file, and the output from the test. Also included is the output from a similar Prg file, but with an error (the last line break ";" is missing). There is no need to worry about memory leaks in the VFoxPro.exe process; in case of significant leaks, the https.net server will soft-restart VFoxPro.exe.
+Prg scripts are processed using COM technology and the included FoxPro9.exe repeater (32-bit), not CGI. COM objects are created as client requests are processed. If a Prg error occurs, a description of the error is returned to the script in the ERROR_MESS variable. Below are examples of a test py file, a Prg file, and the output from the test. Also included is the output from a similar Prg file, but with an error (the last line break ";" is missing). There is no need to worry about memory leaks in the FoxPro9.exe process; in case of significant leaks, the https.net server will soft-restart FoxPro9.exe.
 ```PowerShell
 PS D:\> D:\work\httpd\https.net.exe /?
-Multithreaded http.net server version 2.1.3, (C) a.kornienko.ru June 2026.
+Multithreaded http.net server version 2.2.0, (C) a.kornienko.ru July 2026.
 
 USAGE:
     https.net [Parameter1 Value1] [Parameter2 Value2] ...
@@ -52,10 +52,10 @@ Parameters:                                                                  Val
              are launched as needed depending on the number of concurrent
              requests. Maximum value is 32767.
      -n1     The initial number of interpreters to pre-start.                    2
-     -f      Maximum number of dynamically launched VFoxPro.exe instances.       16
-             VFoxPro.exe COMs are created as needed, depending on the number
+     -f      Maximum number of dynamically launched FoxPro9.exe instances.       16
+             FoxPro9.exe COMs are created as needed, depending on the number
              of concurrent requests. The maximum value is 32767.
-     -f1     The initial number of pre-created VFoxPro.exe COMs.                 2
+     -f1     The initial number of pre-created FoxPro9.exe COMs.                 2
      -log    Size of the query log in rows. The log consists of two              10000
              interleaved versions http.net.x.log and http.net.y.log. If the
              size is set to less than 80, then the log is not kept.
@@ -79,13 +79,13 @@ Parameters:                                                                  Val
 
 Число потоков не следут задавать максимально возможным. По умолчанию — 100. Наблюдайте за журналом, в последнем числовом поле в каждой записи отображен номер работающего потока. Со временем вы поймете какое число одновременных потоков у вас используется. Вероятно это значение значительно меньше 100.  
 
-Сервер https.net поддерживают только быстрый CGI, используя простой скрипт по технологии быстрый старт. Пример для языка Python этого скрипта initcgi.py приведен в репозитории в папке www. Сервер мягко запускает initcgi-скрипт не в момент поступления запроса от клиента, а после отправки очередного ответа. Такой начальный скрипт может быть реализовон на большинстве современных интерпретируемых языках. Это не относится к скриптам prg, у которых роль initCGI выполняет COM-сервер vfoxpro.Engine.  
+Сервер https.net поддерживают только быстрый CGI, используя простой скрипт по технологии быстрый старт. Пример для языка Python этого скрипта initcgi.py приведен в репозитории в папке www. Сервер мягко запускает initcgi-скрипт не в момент поступления запроса от клиента, а после отправки очередного ответа. Такой начальный скрипт может быть реализовон на большинстве современных интерпретируемых языках. Это не относится к скриптам prg, у которых роль initCGI выполняет COM-сервер foxpro9.Shell.  
 
 По умолчанию сервер https.net будет обрабатывать скрипты на Visual Foxpro и Python. Но в параметрах серверов вы можете заменить расширение скрипта и обработчик на любой другой, которому вы по тем или иным причинам отдаете предпочтение — на популярный php или на "dotnet fsi", выполняющий скрипты с расширением fsx, написанные на F#.  
 
 В параметре "-c имя.файла.pfx" указывается имя файла с сертификатом вашего сайта. Получить такой файл бесплптно можно, например, с помощью консольной программы wacs.exe с официального сайта win-acme.com. Для того чтобы получить сертификат на домен второго уровня и все его поддомены третих уровней, в ответах к wacs.exe нужно указать два хоста, например, kornienko.ru и *.kornienko.ru. В этом случае вам нужно будет два раза (на каждый хост отдельно) подтвердить методом DNS-1, что вы владелец/администратор этих хостов. Если подтверждение прошло успешно, то у вас появится единый файл сертификата на оба хоста с ключами шифрования. Пароль на сертификат устанавливать не нужно, в настоящей версии серверов наличие пароля к сертификату не предусмотрено.  
 
-Обработка prg-скриптов происходит с использованием технологии COM и прилагаемого повторителя VFoxPro.exe (32 бит), а не CGI. COM-объекты создаются по мере выполнения запросов от клиентов. В случае ошибки в prg описание этой ошибки возвращается скрипту в переменной ERROR_MESS. Ниже приведены примеры тестового файла py, файла prg и результат его работы. А также результат работы с аналогичным файлом prg, но с ошибкой (отсутствует разрыв последней строки ";"). Беспокоиться об утечках памяти в процессе VFoxPro.exe не надо, в случае значительных утечек, https.net-сервер мягко перезапускает VFoxPro.exe. Поаторитель компилирует prg-файлы только при отсутствии исполнимого fxp-файла. Если fxp-файл существует, используется существующий fxp-файл. Поэтому при внесении изменений в prg необходимо удалить соответствкющий fxp-файл.
+Обработка prg-скриптов происходит с использованием технологии COM и прилагаемого повторителя FoxPro9.exe (32 бит), а не CGI. COM-объекты создаются по мере выполнения запросов от клиентов. В случае ошибки в prg описание этой ошибки возвращается скрипту в переменной ERROR_MESS. Ниже приведены примеры тестового файла py, файла prg и результат его работы. А также результат работы с аналогичным файлом prg, но с ошибкой (отсутствует разрыв последней строки ";"). Беспокоиться об утечках памяти в процессе FoxPro9.exe не надо, в случае значительных утечек, https.net-сервер мягко перезапускает FoxPro9.exe. Поаторитель компилирует prg-файлы только при отсутствии исполнимого fxp-файла. Если fxp-файл существует, используется существующий fxp-файл. Поэтому при внесении изменений в prg необходимо удалить соответствкющий fxp-файл.
 ### Пример Python скрипта test.py
 ```Python
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
@@ -164,12 +164,12 @@ If there is an error in the prg file:
 Сервер https.net принимает и передаёт скрипту входящий поток как есть и поэтому кодировка потока не изменяется.
 #### Классические обработчики
 Существуют весьма разнообразные обработчики (интерпритаторы). Среди них могут быть такие, которые не поддерживают многобыйтовые строки в UTF-8 кодировке. Сервер https.net передаёт POST данные как есть, и если требуется перекодировка данных, то это должны выполнять сами скрипты.
-#### Обработчик VFoxPro.exe
-Для prg скриптов в качастве стандартного ввода-вывода для VFoxPro.exe сервер использует свойство COM STD_INPUT, записывая в него массив байт byte[]. Для VFP это свойство имеет тип Blob. Обычно входящий поток поступает в кодировке UTF-8. Поэтому prg скрипт должен конвертировать эти данные в свою внутреннюю системную кодировку. В VFP для этого есть удобная функция Strconv(). Чтобы конвертировать весь входящий поток POST из UTF-8 используется обращение `STD_INPUT=Strconv(env.STD_INPUT,11)`. Если у вас в данных POST не ожидаются буквы национальных алфавитов, а только цифры, буквы английского алфавита и стандартные знаки, то конвертировать входящий поток не обязательно.  
+#### Обработчик FoxPro9.exe
+Для prg скриптов в качастве стандартного ввода-вывода для FoxPro9.exe сервер использует свойство COM STD_INPUT, записывая в него массив байт byte[]. Для VFP это свойство имеет тип Blob. Обычно входящий поток поступает в кодировке UTF-8. Поэтому prg скрипт должен конвертировать эти данные в свою внутреннюю системную кодировку. В VFP для этого есть удобная функция Strconv(). Чтобы конвертировать весь входящий поток POST из UTF-8 используется обращение `STD_INPUT=Strconv(env.STD_INPUT,11)`. Если у вас в данных POST не ожидаются буквы национальных алфавитов, а только цифры, буквы английского алфавита и стандартные знаки, то конвертировать входящий поток не обязательно.  
 
 В VFP со временем происходит утечка памяти. Поэтому очень важно по окончании работы prg делать очистку всех, созданных вами, объектов.  
 ##### Очистка VFP после окончания работы prg скрипта
-После окончания работы prg скрипта VFoxPro.exe выполняют комады:
+После окончания работы prg скрипта FoxPro9.exe выполняют комады:
 ```xBase
 CLEAR EVENTS        && Остановка очередей событий
 CLOSE DATABASES ALL && Безопасное закрытие таблиц и сброс буферов данных
@@ -177,15 +177,15 @@ CLOSE ALL           && Закрытие низкоуровневых файло�
 CLEAR PROGRAM       && Очистка кэша скомпилированных prg из памяти
 CLEAR MEMORY        && Очистка локальной памяти без повреждения свойств класса
 ```
-Однако вместо этих команд вы можете использовать свой вариант очистки, создав файл VFPclear.prg в папке с файлом VFoxPro.exe. Важно, чтобы вы не забыли добавить в этот файл указанные выше команды, в противном случае VFoxPro может работать не стабильно.  
+Однако вместо этих команд вы можете использовать свой вариант очистки, создав файл VFPclear.prg в папке с файлом FoxPro9.exe. Важно, чтобы вы не забыли добавить в этот файл указанные выше команды, в противном случае FoxPro9 может работать не стабильно.  
 #### Передача входящего потока в файл
 Сервер https.net воспринимают поток POST, если он присутствует, в двух вариантах — как стандартный ввод или как принимаемый произвольный файл, в зависимости от заголовка "Content-Disposition". Если в этом заголовке обнаружен параметр "filename", то весь поток POST помещается в указанный параметром filename файл.
 ### Исходящий поток и кодировка
 Исходящий поток формирует сам скрипт. Этот поток как правило предназначен для обозревателя интернет на стороне клиента. И здесь надо учитывать, что не все обозреватели принимают кодировку по умолчанию UTF-8. Например, обозреватель Edge считает кодировкой по умолчанию национальную кодировку Windows, например, Windows-1251. Поэтому не лишним будет указать необходимую кодировку в заголовке Content-Type в параметре charset, например, `Content-Type: text/plain; charset="utf-8"`. Серверы передают исходящий поток как есть.  
 #### Классические обработчики
 Если вы используете обработчик (интерпретатор), не поддерживаюзий кодировку UTF-8 и вам нужно отправлять символы национальных алфавитов, то как вариант, вам необходимо создать пользовательскую функцию преобразовывающую передаваемую строку в кодировку UTF-8 или любую другую кодировку, не использующую символы национальных алфавитов.
-#### Обработчик VFoxPro.exe
-Для оброботчика VFoxPro.exe, чтобы формировать строки, содержащие символы национальных алфавитов, в кодировке UTF-8, существует команда `UTFstring=Strconv(VFPstring,9)`.
+#### Обработчик FoxPro9.exe
+Для оброботчика FoxPro9.exe, чтобы формировать строки, содержащие символы национальных алфавитов, в кодировке UTF-8, существует команда `UTFstring=Strconv(VFPstring,9)`.
 ### Обсуждение
 Задать вопрос или обсудить тему, касающуюся сервера https.net или VFP/VFPA, вы можете в разделе проекта `Issues` > `New issue`.  
 
