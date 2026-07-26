@@ -2,12 +2,13 @@
 //!!                                                     !!
 //!!   https.net сервер на C#.  Авторы: A.Б. Корниенко   !!
 //!!                                    И.И.google.com   !!
-//!!   Серверный движок         версия  от  05.06.2026   !!
+//!!   Серверный движок         версия  от  28.06.2026   !!
 //!!                                                     !!
 //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 using System;
 using System.Net;
+using System.Buffers;
 using System.Threading;
 using System.Net.Sockets;
 using System.Threading.Tasks;
@@ -19,24 +20,23 @@ namespace https1 {
     ConcurrentStack<int> freeClientsPool;
     Socket listenSocket, listenSocket1;
     SemaphoreSlim poolSemaphore;
-    Task tSer, tSer1;
 
     public bool Start(IPEndPoint ep, IPEndPoint ep1) {
       listenSocket1 = CreateListenSocket(ep1, in F.port1);
       listenSocket = CreateListenSocket(ep, in F.port);
-      if(listenSocket1 == null) F.port1 = F.i0;
-      if(listenSocket == null) F.port = F.i0;
-      if(F.port==F.i0 && F.port1==F.i0) {
+      if(listenSocket1 == null) F.port1 = 0;
+      if(listenSocket == null) F.port = 0;
+      if(F.port==0 && F.port1==0) {
          return false;
       } else {
 
         // Запуск чтения сокетов
-        if(F.port>F.i0 || F.port1>F.i0) {
+        if(F.port>0 || F.port1>0) {
           poolSemaphore = new SemaphoreSlim(F.st,F.st);
           freeClientsPool = new ConcurrentStack<int>();
-          for (int i=F.st; i>F.i0; i--) freeClientsPool.Push(i);
-          if(F.port>F.i0) tSer = Task.Run(() => httpsAcceptAsync());
-          if(F.port1>F.i0) tSer1 = Task.Run(() => httpAcceptAsync());
+          for (int i=F.st; i>0; i--) freeClientsPool.Push(i);
+          if(F.port>0) _= Task.Run(() => httpsAcceptAsync());
+          if(F.port1>0) _= Task.Run(() => httpAcceptAsync());
         }
 
         //Console.WriteLine("Press any key to terminate the server process....");
@@ -48,10 +48,12 @@ namespace https1 {
 
     Socket CreateListenSocket(IPEndPoint ep, in int port) {
       Socket s = null;
-      if(port>F.i0) {
+      if(port>0) {
         // create the socket which listens for incoming connections
-        s = new Socket(ep.AddressFamily, SocketType.Stream, ProtocolType.Tcp) {
-                NoDelay = true };            // Мгновенная отправка
+        s = new Socket(AddressFamily.InterNetworkV6, SocketType.Stream, ProtocolType.Tcp) { 
+                NoDelay = true,             // Мгновенная отправка
+                DualMode = true             // Также принимать IPv4
+        };
 
         // КРИТИЧЕСКИ ВАЖНО ДЛЯ ВЫСОКОЙ НАГРУЗКИ И ТЕСТОВ F5:
         // Разрешаем операционной системе мгновенно переиспользовать порт и адрес,
@@ -72,7 +74,7 @@ namespace https1 {
       while (F.notExit) {
         try { client = await listenSocket.AcceptAsync(); }
         catch (ObjectDisposedException) { break; }
-        _ = toSession(client, F.https);
+        _ = toSession(client, true);
       }
     }
 
@@ -82,11 +84,11 @@ namespace https1 {
       while (F.notExit) {
         try { client = await listenSocket1.AcceptAsync(); }
         catch (ObjectDisposedException) { break; }
-        _ = toSession(client, F.http);
+        _ = toSession(client, false);
       }
     }
 
-    async Task toSession(Socket s, string Prot) {
+    async Task toSession(Socket s, bool Prot) {
 
       // Ждем освобождения места в пуле асинхронно (без блокировки потока!)
       if (await poolSemaphore.WaitAsync(F.tw)) {
@@ -105,14 +107,20 @@ namespace https1 {
          }
       } else {
 
-         // Если какая-нибудь сессия не освободилось за время F.tw.
-         try {
-           await s.SendAsync(new ArraySegment<byte>(System.Text.Encoding.UTF8.GetBytes(
-                "HTTP/1.1 503 Service Unavailable\r\n")), SocketFlags.None);
-         } catch { }
+        // Если какая-нибудь сессия не освободилось за время F.tw.
+        try {
+          await s.SendAsync(new ArraySegment<byte>(System.Text.Encoding.UTF8.GetBytes(
+               "HTTP/1.1 503 Service Unavailable\r\n")), SocketFlags.None);
+        } catch { }
 
-         s.Close();
-         F.log2($"\tQueue timeout. The number of running tasks via {Prot} exceeded {F.st}.");
+        s.Close();
+        char[] rentBuffer = ArrayPool<char>.Shared.Rent(256);
+        if(rentBuffer.AsSpan().TryWrite($"\tQueue timeout. The number of running tasks via {
+                                        Prot} exceeded {F.st}.", out int charsWritten)) {
+          F.log2(rentBuffer.AsMemory(0, charsWritten));
+        } else {
+          ArrayPool<char>.Shared.Return(rentBuffer);
+        }
       }
     }
 
@@ -125,7 +133,7 @@ namespace https1 {
     }
 
     void CloseSocket(Socket s, in int port) {
-      if(port>F.i0 && s != null) s.Close();
+      if(port>0 && s != null) s.Close();
     }
   }
 }
