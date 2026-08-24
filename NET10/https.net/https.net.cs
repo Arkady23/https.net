@@ -1,7 +1,7 @@
 //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 //!!                                                     !!
 //!!   https.net сервер на C#.    Автор: A.Б.Корниенко   !!
-//!!   Головной блок              версия от 26.07.2026   !!
+//!!   Головной блок              версия от 25.08.2026   !!
 //!!                                                     !!
 //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
@@ -48,11 +48,12 @@ public class F : Form {
     public const string DI="index.html", stopIconText= hs+" is stopped", initCGI= "initcgi.",
                  logX=hn+".x.log", logY=hn+".y.log", DirectorySessions="Sessions",
            //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-                 ver="version 2.2.1", verD="July 2026";       //!!
+                 ver="version 2.3.0", verD="August 2026";     //!!
            //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     public const  int i8=1500000, i9=2147483647;
     public static int i, k, port, port1, post, st, qu, bu, bu2, db, db1, it, it1, log9, logi=0,
                   st1, stf, qu1, tw, iIP, iIP1, maxVFP,
+                  lastDay= DateTime.UtcNow.Day,  // день последнего запуска прверки сертификата
                   HeaderBufSize= 1024,    // 1 KB  - первоначальный размер буфера заголовков
                   HeaderBufSize2= 3072,   // 3 KB  - последующий размер буфера заголовков
                   MaxHeaderSize= 29696;   // 29 KB - максимальный размер под заголовки
@@ -67,6 +68,7 @@ public class F : Form {
     public static Icon ico = Icon.ExtractAssociatedIcon(Fullexe);
     public static readonly byte[] CachedDateBytes = new byte[29];
     public static SslServerAuthenticationOptions cert = null;
+    static DateTime CertWriteTime = DateTime.UtcNow;
     public static IPAddress IP = IPAddress.None;
     public static StreamWriter logSW = null;
     public static Session[] session = null;
@@ -77,8 +79,8 @@ public class F : Form {
     public static Type vfpa = null;
     public static Process[] proc;
     public static int[] vfpi;
+    static string CerFile;
     int a9=1000, s9=32767;
-    string CerFile;
 
     protected override void Dispose( bool disposing ) {
       // Clean up any container being used.
@@ -244,7 +246,7 @@ public class F : Form {
       post=33554432;
       iIP=iIP1=0;
       log9=10000;
-      port1=8080;
+      port1=8880;
       port=8443;
       bu=131072;
       Ext="pyc";
@@ -271,18 +273,11 @@ public class F : Form {
             log("\tCertificate was not found.");
             port = 0;
           } else {
-            try {
-              cert = new SslServerAuthenticationOptions {
-                     ServerCertificate = X509CertificateLoader.LoadPkcs12FromFile(CerFile,
-                     string.Empty),      // Пароль не используется
-                     CertificateRevocationCheckMode = X509RevocationMode.NoCheck,
-                     EnabledSslProtocols = SslProtocols.Tls13,
-                     ClientCertificateRequired = false };
-            } catch(Exception e) {
-              log($"\tCertificate error: {e.Message}");
+            if(!TryUpdateSslOptions(File.GetLastWriteTimeUtc(CerFile))) {
+              log($"\tCertificate error.");
               cert = null;
             }
-            if(!(cert!=null)) port=0;
+            if(cert==null) port=0;
           }
           if(port>0 || port1>0) {
             // Вычислить размер поля и формата в журнал для записи номеров сессий
@@ -448,6 +443,23 @@ public class F : Form {
       if(!notQuit) this.Close();
     }
 
+    // Формирование сертификата
+    static bool TryUpdateSslOptions(DateTime newWriteTime) {
+      try {
+        var newCert =
+               new SslServerAuthenticationOptions {
+               ServerCertificate = X509CertificateLoader.LoadPkcs12FromFile(CerFile,
+               string.Empty),      // Пароль не используется
+               EnabledSslProtocols = SslProtocols.Tls12 | SslProtocols.Tls13,
+               CertificateRevocationCheckMode = X509RevocationMode.NoCheck,
+               ClientCertificateRequired = false };
+        cert = newCert;
+        CertWriteTime = newWriteTime;
+        return true;
+      } catch { }
+      return false;
+    }
+
     static void cgiQuit(in int i) {
        try{ proc[i].StandardInput.WriteLine(string.Empty); }
        catch { }
@@ -569,9 +581,18 @@ public class F : Form {
     // Таймер сброса буфера на диск раз в 2 секунды
     static async Task FlushLoopAsync() {
       using var timer = new PeriodicTimer(TimeSpan.FromSeconds(2));
+      DateTime now;
     
       // Чистый асинхронный цикл — 0 блокировок потоков ОС
       while (await timer.WaitForNextTickAsync().ConfigureAwait(false)) {
+        now= DateTime.UtcNow;
+
+        // ЭКОНОМИЧНЫЙ БЛОК ПРОВЕРКИ СУТОЧНОЙ ЗАДАЧИ
+        if(now.Day != lastDay) {
+          lastDay= now.Day;
+          _= Task.Run(() => DailyTask());
+        }
+
         if(log9 > 0) {
           try {
             // Оставляем lock, так как этот таймер работает параллельно 
@@ -588,7 +609,7 @@ public class F : Form {
 
         // Актуальное время для заголовка Date (работает со стеком/буфером, 0 аллокаций)
         // Предполагается, что CachedDateBytes — это Span<char> или Span<byte> (для UTF-8 используется UTF8.TryFormat)
-        DateTime.UtcNow.TryFormat(CachedDateBytes, out _, "R");
+        now.TryFormat(CachedDateBytes, out _, "R");
       }
     }
 
@@ -627,6 +648,24 @@ public class F : Form {
     // МЕТОД 2: Высоконагруженный фоновый логгер.
     public static void log2(ReadOnlyMemory<char> x) {
       if (log9 > 0) logQueue.Writer.TryWrite(x);
+    }
+
+    // Суточная задача, которая уходит в пул потоков
+    static async Task DailyTask() {
+      if(!File.Exists(CerFile)) return;
+      try {
+        // Чтобы тяжелая задача не отбирала такты у критически важных потоков,
+        // можно искусственно понизить приоритет текущего потока на время выполнения.
+        Thread.CurrentThread.Priority= ThreadPriority.BelowNormal;
+
+        // БЛОК САМОЙ СУТОЧНОЙ ЗАДАЧИ
+        DateTime newWriteTime = File.GetLastWriteTimeUtc(CerFile);
+        if(newWriteTime != CertWriteTime) _= TryUpdateSslOptions(newWriteTime);
+
+      } catch { } finally {
+        // Возвращаем приоритет потока в норму, так как поток вернется в общий ThreadPool
+        Thread.CurrentThread.Priority = ThreadPriority.Normal;
+      }
     }
 
     // Проверки IP

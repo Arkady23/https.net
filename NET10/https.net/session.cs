@@ -1,7 +1,7 @@
 //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 //!!                                                         !!
 //!!    https.net сервер на C#.      Автор: A.Б.Корниенко    !!
-//!!    class Session                версия от 26.07.2026    !!
+//!!    class Session                версия от 25.08.2026    !!
 //!!                                                         !!
 //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
@@ -154,15 +154,16 @@ namespace https2 {
           handCts.CancelAfter(F.tw);
 
           try{
+            var Fcert = F.cert;
             sslStream = new SslStream(new NetworkStream(client, true), false);
-            await sslStream.AuthenticateAsServerAsync(F.cert, handCts.Token);
+            await sslStream.AuthenticateAsServerAsync(Fcert, handCts.Token);
             stream = sslStream;
-          }catch (OperationCanceledException){
-            stream?.Dispose();
+          }catch (OperationCanceledException) {
+            sslStream?.Dispose();
             stream = null;
             F.DecrIP1(IP);          // Человек не виноват за обозреватель интернет
           }catch(Exception){
-            stream?.Dispose();
+            sslStream?.Dispose();
             stream = null;
           }
         }else{
