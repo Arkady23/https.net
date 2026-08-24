@@ -16,7 +16,7 @@ The "-c filename.pfx" parameter specifies the name of the file containing your s
 Prg scripts are processed using COM technology and the included FoxPro9.exe repeater (32-bit), not CGI. COM objects are created as client requests are processed. If a Prg error occurs, a description of the error is returned to the script in the ERROR_MESS variable. Below are examples of a test py file, a Prg file, and the output from the test. Also included is the output from a similar Prg file, but with an error (the last line break ";" is missing). There is no need to worry about memory leaks in the FoxPro9.exe process; in case of significant leaks, the https.net server will soft-restart FoxPro9.exe.
 ```PowerShell
 PS D:\> D:\work\httpd\https.net.exe /?
-Multithreaded http.net server version 2.2.1, (C) a.kornienko.ru July 2026.
+Multithreaded http.net server version 2.3.0, (C) a.kornienko.ru August 2026.
 
 USAGE:
     https.net [Parameter1 Value1] [Parameter2 Value2] ...
@@ -38,7 +38,7 @@ Parameters:                                                                  Val
              protocol without a password. If the path is not specified, the
              certificate is searched for in the folder where the https.net
              server is located and in the root folder containing the domains.
-     -p      Port for https-connection. Zero to disable this connection.         8080
+     -p      Port for https-connection. Zero to disable this connection.         8880
      -p1     Port for http-connection. Zero to disable this connection.          8443
      -b      Size of read/write buffers.                                         131072
      -q      Allowable number of requests in the queue.                          1500
@@ -318,3 +318,4 @@ Statistics        Avg      Stdev        Max
 2.1.3-2.1.5 June 2026. В журнал добавлена информация о типе соединения (http/https) и выровнены колонки. Добавлена поддержка IPv6. Очень значительные исправления от ИИ. ИИ считает, что для сервера необходимо свести к минимуму использование строк типа string. Кроме того ИИ убрал копирование трафика, теперь трафик передается прямо из входного потока. Но не все предложения ИИ оказываются эфективными. Например, в результате рекомендуемого ИИ отказа запуска COM VFoxPro через Task.Run, была весьма сильно потеряна производительность ответов prg-скриптов. Поэтому Task.Run были возвращены на прежнее место. Объем текста сильно возрос. Там где раньше просто складывались несколько строк, теперь присутствует сложная логика с арендой памяти и копированием туда байт-кодов бывших строк. Возможно в будущем эти места можно будет как-то унифицировать и упростить.  
 2.2.0 July 2026. Изменения в названии COM, теперь исполняемый файл FoxPro9.exe, а название COM foxpro9.Shell. Добавлен секретный параметр для ультра быстрой отправки файла в ответе, просто в строке со статусом ответа надо добавить параметр filename.  
 2.2.1 July 2026. Обеспечена возможность использовать строку со статусом возврата во всех случаях независимо от наличия в запросе расширения.  
+2.3.0 August 2026. Внедрено отслеживание изменения сертификата. Если сертификат изменился сервер мягко обновляет соответствующий объект в памяти программы. Также изменился порт по умолчанию на 8880 в связи с его совместимостью на проксирование на сервисе Cloudflare.  
