@@ -1,7 +1,7 @@
 //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 //!!                                                     !!
 //!!   https.net сервер на C#.    Автор: A.Б.Корниенко   !!
-//!!   Головной блок              версия от 25.08.2026   !!
+//!!   Головной блок              версия от 31.08.2026   !!
 //!!                                                     !!
 //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
@@ -14,21 +14,30 @@ using System.Web;
 using System.Text;
 using System.Buffers;
 using System.Drawing;
+using Microsoft.Win32;
+using System.Net.Http;
+using System.Text.Json;
 using System.Threading;
+using System.Net.Sockets;
 using System.Diagnostics;
 using System.Buffers.Text;
 using System.Net.Security;
 using System.Windows.Forms;
 using System.ComponentModel;
 using System.Threading.Tasks;
+using System.Net.Http.Headers;
 using System.Threading.Channels;
+using System.Collections.Generic;
+using System.Security.Cryptography;
 using System.Collections.Concurrent;
+using System.Net.NetworkInformation;
 using System.Runtime.InteropServices;
 using System.Security.Authentication;
 using System.Security.Cryptography.X509Certificates;
 
 public class F : Form {
     public static readonly Encoding UTF8 = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false);
+    static readonly HttpClient client = new HttpClient();
     ToolStripMenuItem menuQ = new ToolStripMenuItem();
     ToolStripMenuItem menuF = new ToolStripMenuItem();
     ToolStripMenuItem menuS = new ToolStripMenuItem();
@@ -38,17 +47,19 @@ public class F : Form {
     public static ConcurrentStack<int> freeCGI;
     public static ConcurrentStack<int> freeVFP;
     IContainer conta = new Container();
+    CancellationTokenSource cts;
     static Server ser;
     NotifyIcon nIcon;
     TextBox textBox1;
     string[] param;
 
     const string hn="https.net";
-    const string hs=hn+" server", fn=hn+".xml", leftSp="                       \t";
+    const string fn=hn+".xml", fn_=hn+"_.xml",
+                 hs=hn+" server", leftSp="                       \t";
     public const string DI="index.html", stopIconText= hs+" is stopped", initCGI= "initcgi.",
                  logX=hn+".x.log", logY=hn+".y.log", DirectorySessions="Sessions",
            //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-                 ver="version 2.3.0", verD="August 2026";     //!!
+                 ver="version 2.3.1", verD="August 2026";     //!!
            //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     public const  int i8=1500000, i9=2147483647;
     public static int i, k, port, port1, post, st, qu, bu, bu2, db, db1, it, it1, log9, logi=0,
@@ -58,8 +69,8 @@ public class F : Form {
                   HeaderBufSize2= 3072,   // 3 KB  - последующий размер буфера заголовков
                   MaxHeaderSize= 29696;   // 29 KB - максимальный размер под заголовки
                                           //         за минусом текущего буфера
-    public static string DocumentRoot, Folder=Thread.GetDomain().BaseDirectory,
-                  DirectoryIndex, Proc, Args, Ext, logZ=string.Empty;
+    public static string DocumentRoot, Folder=Thread.GetDomain().BaseDirectory, Proc,
+                  DirectoryIndex, Args, Ext, pfxPw, cfToken, logZ=string.Empty;
     static readonly Channel<ReadOnlyMemory<char>> logQueue =
                   Channel.CreateUnbounded<ReadOnlyMemory<char>>(
                   new UnboundedChannelOptions { SingleReader = true });
@@ -68,6 +79,7 @@ public class F : Form {
     public static Icon ico = Icon.ExtractAssociatedIcon(Fullexe);
     public static readonly byte[] CachedDateBytes = new byte[29];
     public static SslServerAuthenticationOptions cert = null;
+    static List<DnsRecord> DnsCache = new List<DnsRecord>();
     static DateTime CertWriteTime = DateTime.UtcNow;
     public static IPAddress IP = IPAddress.None;
     public static StreamWriter logSW = null;
@@ -75,12 +87,19 @@ public class F : Form {
     public static FileStream logFS = null;
     public static ProcessStartInfo[] cgi;
     public static dynamic[] vfp = null;
+    static string IPv6 = string.Empty;
     public static byte[] vfpb, cgib;
     public static Type vfpa = null;
     public static Process[] proc;
     public static int[] vfpi;
     static string CerFile;
     int a9=1000, s9=32767;
+    bool l=true;      // Аргументы запуска верные
+
+    public class DnsRecord {
+       public string ZoneId { get; set; }
+       public string AaaaId { get; set; }
+    }
 
     protected override void Dispose( bool disposing ) {
       // Clean up any container being used.
@@ -140,7 +159,7 @@ public class F : Form {
       System.Text.Encoding.RegisterProvider(System.Text.CodePagesEncodingProvider.Instance);
 
       Directory.SetCurrentDirectory(Folder);
-      if(!(ico != null)) ico = SystemIcons.Shield;
+      if(ico == null) ico = SystemIcons.Shield;
 
       // https://learn.microsoft.com/en-us/dotnet/api/system.windows.forms.notifyicon?view=windowsdesktop-9.0&redirectedfrom=MSDN
       Application.Run( new F(args));
@@ -214,6 +233,9 @@ public class F : Form {
         StopServer();
       };
 
+      // Подписываемся на событие изменения адресов
+      NetworkChange.NetworkAddressChanged += OnNetworkAddressChanged;
+
       param = (string[])args.Clone();
       ThreadPool.GetMaxThreads(out s9, out a9);
       RunServer(args);
@@ -238,11 +260,11 @@ public class F : Form {
     private async void RunServer(string[] args){
 
       // Установить значения сервера по умолчанию
+      Args=pfxPw=cfToken=string.Empty;
       CerFile="kornienko.ru.pfx";
       DocumentRoot="../www/";
       Proc="python.exe";
       DirectoryIndex=DI;
-      Args=string.Empty;
       post=33554432;
       iIP=iIP1=0;
       log9=10000;
@@ -407,6 +429,7 @@ public class F : Form {
       }else{
 
         // Неверные параметры запуска, закрыть приложение
+        log("\tError in launch arguments.");
         nIcon.Text = hs;
         this.Show();
         this.WindowState = FormWindowState.Normal;
@@ -448,8 +471,7 @@ public class F : Form {
       try {
         var newCert =
                new SslServerAuthenticationOptions {
-               ServerCertificate = X509CertificateLoader.LoadPkcs12FromFile(CerFile,
-               string.Empty),      // Пароль не используется
+               ServerCertificate = X509CertificateLoader.LoadPkcs12FromFile(CerFile, pfxPw),
                EnabledSslProtocols = SslProtocols.Tls12 | SslProtocols.Tls13,
                CertificateRevocationCheckMode = X509RevocationMode.NoCheck,
                ClientCertificateRequired = false };
@@ -458,6 +480,158 @@ public class F : Form {
         return true;
       } catch { }
       return false;
+    }
+
+    // Обработчик события с защитой от нескольких близких повторов
+    void OnNetworkAddressChanged(object sender, EventArgs e) {
+      cts?.Cancel();
+      cts = new CancellationTokenSource();
+      _= Task.Run(async () => {
+         try {
+           // Ждем 3 секунды. Если за это время прилетит еще одно событие — этот таск отменится
+           await Task.Delay(3000, cts.Token); 
+      
+           // И только когда сеть «успокоилась», вызываем ваш метод обновления
+           await UpdateCfAsync();
+         } catch { }
+      });
+    }
+
+    // Определение реального внешнего IPv6
+    string GetIPv6() {
+      UnicastIPAddressInformation bestAddress = null;
+      long maxLifetime = -1;
+      foreach (var netInterface in NetworkInterface.GetAllNetworkInterfaces()) {
+        // Проверяем только активные физические сети и Wi-Fi
+        if (netInterface.OperationalStatus == OperationalStatus.Up && 
+            netInterface.NetworkInterfaceType != NetworkInterfaceType.Loopback && 
+            netInterface.NetworkInterfaceType != NetworkInterfaceType.Tunnel) {
+            foreach (var ip in netInterface.GetIPProperties().UnicastAddresses) {
+              if (ip.Address.AddressFamily == AddressFamily.InterNetworkV6) {
+                // 1. Фильтруем локальные, служебные и ULA адреса (fe80::, fd00::, fc00::, ::1)
+                if (ip.Address.IsIPv6LinkLocal || ip.Address.IsIPv6SiteLocal ||
+                  IsUniqueLocal(ip.Address) || IPAddress.IsLoopback(ip.Address)) continue;
+
+                // 2. Проверяем, что адрес находится в рабочем и предпочтительном состоянии
+                if (ip.DuplicateAddressDetectionState != DuplicateAddressDetectionState.Preferred)
+                  continue;
+
+                // 3. Считываем оставшееся время жизни адреса (в секундах)
+                long currentLifetime = ip.AddressValidLifetime;
+
+                // Если время жизни "бесконечно" (infinite), .NET может вернуть UInt32.MaxValue.
+                // Присваиваем ему максимально возможный вес.
+                if (currentLifetime == uint.MaxValue) currentLifetime = long.MaxValue;
+
+                // 4. Сравниваем: выбираем адрес, у которого осталось БОЛЬШЕ ВСЕГО времени жизни
+                if (currentLifetime > maxLifetime) {
+                  maxLifetime = currentLifetime;
+                  bestAddress = ip;
+                }
+              }
+            }
+        }
+      }
+      return bestAddress != null ? bestAddress.Address.ToString() : string.Empty;
+    }
+    bool IsUniqueLocal(IPAddress address) {
+      // Побитовая проверка маски fc00::/7 для отсечения уникальных локальных адресов (ULA),
+      // таких как fd7e::
+      byte[] bytes = address.GetAddressBytes();
+      return bytes.Length > 0 && (bytes[0] & 0xFE) == 0xFC;
+    }
+
+    // API-запрос
+    async Task<string> RequestAsync(HttpMethod method, string url, string token,
+                       string jsonBody = "") {
+      for (int attempt = 1; attempt <= 2; attempt++) {
+        try {
+          using var request = new HttpRequestMessage(method, url);
+          request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+          request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+          if(jsonBody.Length > 0) {
+            request.Content = new StringContent(jsonBody, Encoding.UTF8, "application/json");
+          }
+          using var response =
+                await client.SendAsync(request, HttpCompletionOption.ResponseContentRead);
+          if (!response.IsSuccessStatusCode && attempt == 1) {
+             await Task.Delay(1000);
+             continue;
+          }
+          return await response.Content.ReadAsStringAsync();
+        } catch {
+          if (attempt == 1) await Task.Delay(1000);
+        }
+      }
+      int i = 0;
+      char[] rentBuffer = ArrayPool<char>.Shared.Rent(128);
+      string host = Uri.TryCreate(url, UriKind.Absolute, out var uri)? uri.Host : "unknown";
+      if (rentBuffer.AsSpan().TryWrite($"\tError: Request to {host} failed!", out i)) {
+         log2(rentBuffer.AsMemory(0, i));
+      } else {
+        ArrayPool<char>.Shared.Return(rentBuffer);
+      }
+      return string.Empty;
+    }
+
+    // Обновление записей AAAA
+    async Task UpdateCfAsync() {
+      if(DnsCache.Count == 0) {
+        // Первое обращение
+        string zonesJson = await RequestAsync(HttpMethod.Get,
+                          "https://api.cloudflare.com/client/v4/zones", cfToken);
+        if (zonesJson.Length == 0) return;
+        using var zonesDoc = JsonDocument.Parse(zonesJson);
+        if(zonesDoc.RootElement.GetProperty("success").GetBoolean()) {
+          foreach (var zone in zonesDoc.RootElement.GetProperty("result").EnumerateArray()) {
+            await Task.Delay(1000);
+            string zoneId = zone.GetProperty("id").GetString();
+            string dnsUrl = $"https://api.cloudflare.com/client/v4/zones/{zoneId}/dns_records?type=AAAA";
+            string dnsJson = await RequestAsync(HttpMethod.Get, dnsUrl, cfToken);
+            if (dnsJson.Length == 0) continue;
+            using var dnsDoc = JsonDocument.Parse(dnsJson);
+            if (dnsDoc.RootElement.GetProperty("success").GetBoolean()) {
+              foreach (var record in dnsDoc.RootElement.GetProperty("result").EnumerateArray()) {
+                if(IPv6.Length == 0) IPv6= record.GetProperty("content").GetString();
+                DnsCache.Add(new DnsRecord {
+                    ZoneId = zoneId,
+                    AaaaId = record.GetProperty("id").GetString(),
+                });
+              }
+            }
+          }
+        }
+      }
+      if(DnsCache.Count > 0) {
+        string newIPv6 = GetIPv6();
+        if(newIPv6.Length>0 && IPv6 != newIPv6) {
+          foreach (var record in DnsCache) {
+            await Task.Delay(1000);
+            string updateUrl = $"https://api.cloudflare.com/client/v4/zones/{record.ZoneId}/dns_records/{record.AaaaId}";
+            string jsonBody = $"{{\"content\":\"{newIPv6}\"}}";
+            string responseJson = await RequestAsync(HttpMethod.Patch, updateUrl, cfToken, jsonBody);
+            if (responseJson.Length > 0) {
+              using var responseDoc = JsonDocument.Parse(responseJson);
+              if (!responseDoc.RootElement.GetProperty("success").GetBoolean()) {
+                RunUpdateCfAgain();
+                return;
+              }
+            } else {
+              RunUpdateCfAgain();
+              return;
+            }
+          }
+          IPv6= newIPv6;
+        }
+      }
+    }
+
+    // Повторить через 5 минут, если произошла ошибка обмена с DNS-сервером
+    void RunUpdateCfAgain() {
+      _ = Task.Run(async () => {
+        await Task.Delay(TimeSpan.FromMinutes(5));
+        await UpdateCfAsync();
+      });
     }
 
     static void cgiQuit(in int i) {
@@ -791,6 +965,13 @@ public class F : Form {
         nIcon.ShowBalloonTip(6100, "Schtasks command", output,
               ret? ToolTipIcon.Info:ToolTipIcon.Error);
       }
+      if(File.Exists(fn_)) {
+        if(File.Exists(fn)) {
+          File.Delete(fn_);
+        } else {
+          File.Move(fn_,fn);
+        }
+      }
       return ret;
     }
 
@@ -807,11 +988,59 @@ public class F : Form {
       return ++i<args.Length;
     }
 
+    string unProtect(string enc) {
+      if (enc.Length < 8) return string.Empty;
+      int i, j;
+      int seed = GetMachineSeed();
+      char[] chars = enc.ToCharArray();
+      char[] SafeAlphabet =
+              "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789".ToCharArray();
+      Random rand = new Random(seed);
+      int[] swapIndices = new int[chars.Length];
+      for (i = chars.Length - 1; i > 0; i--) {
+        swapIndices[i] = rand.Next(0, i + 1);
+      }
+      for (i = 1; i < chars.Length; i++) {
+        char temp = chars[i];
+        j = swapIndices[i];
+        chars[i] = chars[j];
+        chars[j] = temp;
+      }
+      char lenChar1 = chars[0];
+      char lenChar2 = chars[1];
+      int idx1 = Array.IndexOf(SafeAlphabet, lenChar1);
+      int idx2 = Array.IndexOf(SafeAlphabet, lenChar2);
+      if (idx1 == -1 || idx2 == -1) return string.Empty;
+      int originalLength = (idx1 * SafeAlphabet.Length) + idx2;
+      if (originalLength <= 0 || originalLength > 92 || originalLength > chars.Length - 2) {
+        return string.Empty;
+      }
+      return new string(chars, 2, originalLength);
+    }
+
+    int GetMachineSeed() {
+      try {
+        using (var key = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(
+               @"SOFTWARE\Microsoft\Cryptography")) {
+          string machineId = key?.GetValue("MachineGuid")?.ToString();
+          if (string.IsNullOrEmpty(machineId)) {
+            machineId = Environment.MachineName +
+                        Environment.GetFolderPath(Environment.SpecialFolder.Windows);
+          }
+          int seed = 0;
+          foreach (char c in machineId) {
+            seed = (seed * 31) + c;
+          }
+          return seed;
+        }
+      } catch { }
+      return 5839201; 
+    }
+
     bool getArgs(String[] args){
       const int b9=262144, p9=65535, post9=33554432, b0=512, log0=80;
       string tx=string.Empty, ts=string.Empty, cA="Arguments>";
       int k1, t9=10;
-      bool l=true;
 
       // Если введён ключ вида /? или -? или /help или -help
       if (args.Length == 1) l = args[0].Length>9;
@@ -991,9 +1220,15 @@ public class F : Form {
         case "-ext":
           if(toArg(args)) Ext=args[i];
           break;
+        case "-pfx-enc":
+          if(toArg(args)) pfxPw=unProtect(args[i]);
+          break;
+        case "-cloudflare-enc":
+          if(toArg(args)) cfToken=unProtect(args[i]);
+          break;
         case "/regserver":
-          ts = "/create /tn "+hn+" /ru system /xml "+fn;
-          if(tx.Length > 0) File.WriteAllText(fn,tx);
+          ts = "/create /tn "+hn+" /ru system /xml "+fn_;
+          if(tx.Length > 0) File.WriteAllText(fn_,tx);
           i = args.Length;
           notQuit = false;
           break;
@@ -1003,7 +1238,7 @@ public class F : Form {
           notQuit = false;
           break;
         default:
-          l=false;
+          l = false;
           break;
         }
       }
@@ -1047,9 +1282,15 @@ Parameters:                                                                  Val
              files compressed using gzip method of the name.expansion.gz type
              are supported, for example - index.html.gz or library.js.gz etc.
      -c      Name of the file containing the PFX certificate for the TLS 1.3     {CerFile}
-             protocol without a password. If the path is not specified, the
-             certificate is searched for in the folder where the https.net
-             server is located and in the root folder containing the domains.
+             protocol. If the path is not specified, the certificate is 
+             searched for in the folder where the https.net server is located
+             and in the root folder containing the domains.
+     -pfx-enc                                                                    {(pfxPw.Length>0? "***": pfxPw)}
+             Encrypted password for the PFX certificate (specified in -c).
+             The string must be pre-encrypted using the Protect method.
+     -cloudflare-enc                                                             {(cfToken.Length>0? "***": cfToken)}
+             Encrypted Cloudflare API token for automatic deployment of AAAA
+             DNS records. The string must be pre-encrypted using Protect.
      -p      Port for https-connection. Zero to disable this connection.         {port}
      -p1     Port for http-connection. Zero to disable this connection.          {port1}
      -b      Size of read/write buffers.                                         {bu}
