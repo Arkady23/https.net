@@ -1285,12 +1285,13 @@ Parameters:                                                                  Val
              protocol. If the path is not specified, the certificate is 
              searched for in the folder where the https.net server is located
              and in the root folder containing the domains.
-     -pfx-enc                                                                    {(pfxPw.Length>0? "***": pfxPw)}
+     -pfx-enc                                                                    {(pfxPw.Length>0? "*****": pfxPw)}
              Encrypted password for the PFX certificate (specified in -c).
-             The string must be pre-encrypted using the Protect method.
-     -cloudflare-enc                                                             {(cfToken.Length>0? "***": cfToken)}
+             The string must be pre-encrypted using the protect.net.exe.
+     -cloudflare-enc                                                             {(cfToken.Length>0? "*****": cfToken)}
              Encrypted Cloudflare API token for automatic deployment of AAAA
-             DNS records. The string must be pre-encrypted using Protect.
+             DNS records. The string must be pre-encrypted using the
+             protect.net.exe.
      -p      Port for https-connection. Zero to disable this connection.         {port}
      -p1     Port for http-connection. Zero to disable this connection.          {port1}
      -b      Size of read/write buffers.                                         {bu}
