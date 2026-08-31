@@ -16,7 +16,7 @@ The "-c filename.pfx" parameter specifies the name of the file containing your s
 Prg scripts are processed using COM technology and the included FoxPro9.exe repeater (32-bit), not CGI. COM objects are created as client requests are processed. If a Prg error occurs, a description of the error is returned to the script in the ERROR_MESS variable. Below are examples of a test py file, a Prg file, and the output from the test. Also included is the output from a similar Prg file, but with an error (the last line break ";" is missing). There is no need to worry about memory leaks in the FoxPro9.exe process; in case of significant leaks, the https.net server will soft-restart FoxPro9.exe.
 ```PowerShell
 PS D:\> D:\work\httpd\https.net.exe /?
-Multithreaded http.net server version 2.3.0, (C) a.kornienko.ru August 2026.
+Multithreaded http.net server version 2.3.1, (C) a.kornienko.ru August 2026.
 
 USAGE:
     https.net [Parameter1 Value1] [Parameter2 Value2] ...
@@ -35,9 +35,16 @@ Parameters:                                                                  Val
              files compressed using gzip method of the name.expansion.gz type
              are supported, for example - index.html.gz or library.js.gz etc.
      -c      Name of the file containing the PFX certificate for the TLS 1.3     kornienko.ru.pfx
-             protocol without a password. If the path is not specified, the
-             certificate is searched for in the folder where the https.net
-             server is located and in the root folder containing the domains.
+             protocol. If the path is not specified, the certificate is 
+             searched for in the folder where the https.net server is located
+             and in the root folder containing the domains.
+     -pfx-enc
+             Encrypted password for the PFX certificate (specified in -c).
+             The string must be pre-encrypted using the protect.net.exe.
+     -cloudflare-enc                                                             ***
+             Encrypted Cloudflare API token for automatic deployment of AAAA
+             DNS records. The string must be pre-encrypted using the
+             protect.net.exe.
      -p      Port for https-connection. Zero to disable this connection.         8880
      -p1     Port for http-connection. Zero to disable this connection.          8443
      -b      Size of read/write buffers.                                         131072
