@@ -41,7 +41,7 @@ Parameters:                                                                  Val
      -pfx-enc
              Encrypted password for the PFX certificate (specified in -c).
              The string must be pre-encrypted using the protect.net.exe.
-     -cloudflare-enc                                                             ***
+     -cloudflare-enc                                                             *****
              Encrypted Cloudflare API token for automatic deployment of AAAA
              DNS records. The string must be pre-encrypted using the
              protect.net.exe.
