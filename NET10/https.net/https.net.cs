@@ -1,7 +1,7 @@
 //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 //!!                                                     !!
 //!!   https.net сервер на C#.    Автор: A.Б.Корниенко   !!
-//!!   Головной блок              версия от 31.08.2026   !!
+//!!   Головной блок              версия от 04.09.2026   !!
 //!!                                                     !!
 //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
@@ -59,7 +59,7 @@ public class F : Form {
     public const string DI="index.html", stopIconText= hs+" is stopped", initCGI= "initcgi.",
                  logX=hn+".x.log", logY=hn+".y.log", DirectorySessions="Sessions",
            //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-                 ver="version 2.3.1", verD="August 2026";     //!!
+                 ver="version 2.4.0", verD="September 2026";  //!!
            //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     public const  int i8=1500000, i9=2147483647;
     public static int i, k, port, port1, post, st, qu, bu, bu2, db, db1, it, it1, log9, logi=0,
@@ -69,8 +69,8 @@ public class F : Form {
                   HeaderBufSize2= 3072,   // 3 KB  - последующий размер буфера заголовков
                   MaxHeaderSize= 29696;   // 29 KB - максимальный размер под заголовки
                                           //         за минусом текущего буфера
-    public static string DocumentRoot, Folder=Thread.GetDomain().BaseDirectory, Proc,
-                  DirectoryIndex, Args, Ext, pfxPw, cfToken, logZ=string.Empty;
+    public static string DocumentRoot, Folder=Thread.GetDomain().BaseDirectory, DirectoryIndex,
+                  Proc, Args, Ext, pfxPw, cfToken=string.Empty, logZ=string.Empty;
     static readonly Channel<ReadOnlyMemory<char>> logQueue =
                   Channel.CreateUnbounded<ReadOnlyMemory<char>>(
                   new UnboundedChannelOptions { SingleReader = true });
@@ -484,17 +484,19 @@ public class F : Form {
 
     // Обработчик события с защитой от нескольких близких повторов
     void OnNetworkAddressChanged(object sender, EventArgs e) {
-      cts?.Cancel();
-      cts = new CancellationTokenSource();
-      _= Task.Run(async () => {
-         try {
-           // Ждем 3 секунды. Если за это время прилетит еще одно событие — этот таск отменится
-           await Task.Delay(3000, cts.Token); 
+      if(cfToken.Length > 0) {   // Раз событие назначается при старте, проверяем наличие токена
+        cts?.Cancel();
+        cts = new CancellationTokenSource();
+        _= Task.Run(async () => {
+           try {
+             // Ждем 3 секунды. Если за это время прилетит еще одно событие - этот таск отменится
+             await Task.Delay(3000, cts.Token); 
       
-           // И только когда сеть «успокоилась», вызываем ваш метод обновления
-           await UpdateCfAsync();
-         } catch { }
-      });
+             // И только когда сеть «успокоилась», вызываем ваш метод обновления
+             await UpdateCfAsync();
+           } catch { }
+        });
+      }
     }
 
     // Определение реального внешнего IPv6
