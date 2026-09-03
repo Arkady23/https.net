@@ -13,7 +13,7 @@ By default, the https.net server will process Visual FoxPro and Python scripts. 
 
 The "-c filename.pfx" parameter specifies the name of the file containing your site's certificate. You can obtain such a file for free, for example, using the wacs.exe console program from the official website win-acme.com. To obtain a certificate for a second-level domain and all its third-level subdomains, you must specify two hosts in the wacs.exe responses, for example, kornienko.ru and *.kornienko.ru. In this case, you will need to confirm twice (for each host separately) that you are the owner/administrator of these hosts using DNS-1. If confirmation is successful, you will receive a single certificate file for both hosts with encryption keys. The https.net server monitors the certificate file for changes. If the certificate changes, https.net will automatically update it without interrupting service.  
 
-Сервер https.net может обновлять динамический IPv6 в записях AAAA DNS-серверов Cloudflare.  
+The https.net server can update dynamic IPv6 in the AAAA records of Cloudflare's DNS servers.  
 
 Prg scripts are processed using COM technology and the included FoxPro9.exe repeater (32-bit), not CGI. COM objects are created as client requests are processed. If a Prg error occurs, a description of the error is returned to the script in the ERROR_MESS variable. Below are examples of a test py file, a Prg file, and the output from the test. Also included is the output from a similar Prg file, but with an error (the last line break ";" is missing). There is no need to worry about memory leaks in the FoxPro9.exe process; in case of significant leaks, the https.net server will soft-restart FoxPro9.exe.
 ```PowerShell
