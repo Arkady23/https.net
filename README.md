@@ -3,7 +3,7 @@ Multithreaded https.net server with Visual Foxpro on COM and with Python on fast
 
 Многопоточный https.net сервер с Visual Foxpro на COM и с Python на быстром CGI по умолчанию, с защитой от DoS-атак.
 ### General information
-The root folder for domains (www by default) should contain folders corresponding to the domain name and subdomain of the requested resource. If the request is http://a.kornienko.ru:8443 or https://a.kornienko.ru:8443, the root folder for domains should contain a folder named a.kornienko.ru, for example: D:/work/www/a.kornienko.ru. If you need this same folder to open at a different address, you should create a symbolic link to this folder so that one folder is accessible from two different paths. To do this, use the Windows mklink command with the /d switch.  
+The root folder for domains (www by default) should contain folders corresponding to the domain name and subdomain of the requested resource. If the request is http://a.kornienko.ru:8880 or https://a.kornienko.ru:8443, the root folder for domains should contain a folder named a., for example: D:/work/www/a.. If you need this same folder to open at a different address, you should create a symbolic link to this folder so that one folder is accessible from two different paths. To do this, use the Windows mklink command with the /d switch.  
 
 The number of threads should not be set to the maximum possible. The default is 500. Watch the log, the last numeric field in each entry shows the number of the running thread. Over time, you will understand how many simultaneous threads you have in use. This value is probably significantly less than 500.  
 
@@ -11,14 +11,14 @@ The https.net server only supports fast CGI, using a simple script based on quic
 
 By default, the https.net server will process Visual FoxPro and Python scripts. However, in the server settings, you can change the script extension and handler to any other you prefer—the popular PHP or "dotnet fsi," which runs F# scripts with the .fsx extension.  
 
-The "-c filename.pfx" parameter specifies the name of the file containing your site's certificate. You can obtain such a file for free, for example, using the wacs.exe console program from the official website win-acme.com. To obtain a certificate for a second-level domain and all its third-level subdomains, you must specify two hosts in the wacs.exe responses, for example, kornienko.ru and *.kornienko.ru. In this case, you will need to confirm twice (for each host separately) that you are the owner/administrator of these hosts using DNS-1. If confirmation is successful, you will receive a single certificate file for both hosts with encryption keys. The https.net server monitors the certificate file for changes. If the certificate changes, https.net will automatically update it without interrupting service.  
+The "-c filename.pfx" parameter specifies the name of the file containing your site's certificate. You can obtain such a file for free, for example, using the wacs.exe console program from the official website win-acme.com. To obtain a certificate for a second-level domain and all its third-level subdomains, you must specify two hosts in the wacs.exe responses, for example,  and *.. In this case, you will need to confirm twice (for each host separately) that you are the owner/administrator of these hosts using DNS-1. If confirmation is successful, you will receive a single certificate file for both hosts with encryption keys. The https.net server monitors the certificate file for changes. If the certificate changes, https.net will automatically update it without interrupting service.  
 
 The https.net server can update dynamic IPv6 in the AAAA records of Cloudflare's DNS servers.  
 
 Prg scripts are processed using COM technology and the included FoxPro9.exe repeater (32-bit), not CGI. COM objects are created as client requests are processed. If a Prg error occurs, a description of the error is returned to the script in the ERROR_MESS variable. Below are examples of a test py file, a Prg file, and the output from the test. Also included is the output from a similar Prg file, but with an error (the last line break ";" is missing). There is no need to worry about memory leaks in the FoxPro9.exe process; in case of significant leaks, the https.net server will soft-restart FoxPro9.exe.
 ```PowerShell
 PS D:\> D:\work\httpd\https.net.exe /?
-Multithreaded http.net server version 2.4.0, (C) a.kornienko.ru September 2026.
+Multithreaded http.net server version 2.4.0, (C) a. September 2026.
 
 USAGE:
     https.net [Parameter1 Value1] [Parameter2 Value2] ...
@@ -36,7 +36,7 @@ Parameters:                                                                  Val
              with the 404 code - file was not found. To compress traffic,
              files compressed using gzip method of the name.expansion.gz type
              are supported, for example - index.html.gz or library.js.gz etc.
-     -c      Name of the file containing the PFX certificate for the TLS 1.3     kornienko.ru.pfx
+     -c      Name of the file containing the PFX certificate for the TLS 1.3     .pfx
              protocol. If the path is not specified, the certificate is 
              searched for in the folder where the https.net server is located
              and in the root folder containing the domains.
@@ -84,7 +84,7 @@ Parameters:                                                                  Val
      -ext    Extension of the script files.                                      pyc
 ```
 ### Общие сведения
-Корневая папка для доменов (по умолчанию www) должна содержать папки, соответствующие доменному имени и поддомену запрашиваемого ресурса. Если запрос выглядит как http://a.kornienko.ru:8443 или https://a.kornienko.ru:8443, то в корневой папке для доменов должна быть папка с именем a.kornienko.ru, например: D:/work/www/a.kornienko.ru. Если вам нужно, чтобы эта же папка также открывалась и по другому адресу, то вы должны на эту папку создать соответствующую символическую ссылку, чтобы одна папка была доступна по двум разным путям. Для этого воспользуйтесь командой Windows mklink с ключем /d.  
+Корневая папка для доменов (по умолчанию www) должна содержать папки, соответствующие доменному имени и поддомену запрашиваемого ресурса. Если запрос выглядит как http://a.kornienko.ru:8880 или https://a.kornienko.ru:8443, то в корневой папке для доменов должна быть папка с именем a.kornienko.ru, например: D:/work/www/a.kornienko.ru. Если вам нужно, чтобы эта же папка также открывалась и по другому адресу, то вы должны на эту папку создать соответствующую символическую ссылку, чтобы одна папка была доступна по двум разным путям. Для этого воспользуйтесь командой Windows mklink с ключем /d.  
 
 Число потоков не следут задавать максимально возможным. По умолчанию — 500. Наблюдайте за журналом, в последнем числовом поле в каждой записи отображен номер работающего потока. Со временем вы поймете какое число одновременных потоков у вас используется. Вероятно это значение значительно меньше 500.  
 
