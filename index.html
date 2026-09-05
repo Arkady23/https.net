@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Обход щакрытых портов 80 и 443 через редирект с github.com</title>
+    <script>
+        const targetServer = "://a.kornienko.ru:8880";
+        const redirectUrl = targetServer + window.location.pathname + window.location.search + window.location.hash;
+        window.location.replace("http"+redirectUrl);
+    </script>
+</head>
+<body>
+    <p>Если перенаправление не произошло автоматически, <a id="manual-link" href="#">нажмите сюда</a>.</p>
+    <script>
+        document.getElementById("manual-link").href = redirectUrl;
+    </script>
+</body>
+</html>
