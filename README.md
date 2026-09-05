@@ -13,7 +13,7 @@ By default, the https.net server will process Visual FoxPro and Python scripts. 
 
 The "-c filename.pfx" parameter specifies the name of the file containing your site's certificate. You can obtain such a file for free, for example, using the wacs.exe console program from the official website win-acme.com. To obtain a certificate for a second-level domain and all its third-level subdomains, you must specify two hosts in the wacs.exe responses, for example,  and *.. In this case, you will need to confirm twice (for each host separately) that you are the owner/administrator of these hosts using DNS-1. If confirmation is successful, you will receive a single certificate file for both hosts with encryption keys. The https.net server monitors the certificate file for changes. If the certificate changes, https.net will automatically update it without interrupting service.  
 
-The https.net server can update dynamic IPv6 in the AAAA records of Cloudflare's DNS servers.  
+The https.net server can update dynamic IPv6 in Cloudflare's AAAA DNS records. To do this, specify the -cloudflare-enc parameter, followed by an encrypted token with read access to the zone list and edit DNS records. The token is encrypted using the protect.net.exe console utility. The utility's parameter specifies the string to be encrypted. You can also specify a second numeric parameter—the desired key length (the longer the length, the more secure the string). The encryption key is tied to the Windows 10/11 operating system. If the operating system is reinstalled, decryption will not occur, nor will the dynamic IPv6 update be performed.  
 
 Prg scripts are processed using COM technology and the included FoxPro9.exe repeater (32-bit), not CGI. COM objects are created as client requests are processed. If a Prg error occurs, a description of the error is returned to the script in the ERROR_MESS variable. Below are examples of a test py file, a Prg file, and the output from the test. Also included is the output from a similar Prg file, but with an error (the last line break ";" is missing). There is no need to worry about memory leaks in the FoxPro9.exe process; in case of significant leaks, the https.net server will soft-restart FoxPro9.exe.
 ```PowerShell
@@ -47,8 +47,8 @@ Parameters:                                                                  Val
              Encrypted Cloudflare API token for automatic deployment of AAAA
              DNS records. The string must be pre-encrypted using the
              protect.net.exe.
-     -p      Port for https-connection. Zero to disable this connection.         8880
-     -p1     Port for http-connection. Zero to disable this connection.          8443
+     -p      Port for https-connection. Zero to disable this connection.         8443
+     -p1     Port for http-connection. Zero to disable this connection.          8880
      -b      Size of read/write buffers.                                         131072
      -q      Allowable number of requests in the queue.                          1500
      -q1     Allowed number of requests in the queue per IP.                     32
@@ -94,7 +94,10 @@ Parameters:                                                                  Val
 
 В параметре "-c имя.файла.pfx" указывается имя файла с сертификатом вашего сайта. Получить такой файл бесплптно можно, например, с помощью консольной программы wacs.exe с официального сайта win-acme.com. Для того чтобы получить сертификат на домен второго уровня и все его поддомены третих уровней, в ответах к wacs.exe нужно указать два хоста, например, kornienko.ru и *.kornienko.ru. В этом случае вам нужно будет два раза (на каждый хост отдельно) подтвердить методом DNS-1, что вы владелец/администратор этих хостов. Если подтверждение прошло успешно, то у вас появится единый файл сертификата на оба хоста с ключами шифрования. Сервер https.net следит за изменением файла сертификата. Если сертификат изменился https.net автоматически обновит его не прерывая работу.  
 
-Сервер https.net может обновлять динамический IPv6 в записях AAAA DNS-серверов Cloudflare.  
+Сервер https.net может обновлять динамический IPv6 в записях AAAA DNS-серверов Cloudflare. Для этого необходимо задать параметр
+-cloudflare-enc, после которого указать зашифрованный токен с доступом чтения списка зон и редактирования DNS-записей. Шифрование токена производится с помощью консольной утилиты protect.net.exe. Параметром к утилите задается шифруемая строка. Дополнительно можно задать второй числовой параметр — желаемая длина ключа (чем больше длина, тем выше степень зашиты строки).
+Ключ шифрования привязан к операционной системе Windows 10/11. Если ОС переустановлена, дешифрация происходить не будет, как
+не будет производится и обновление динамического IPv6.  
 
 Обработка prg-скриптов происходит с использованием технологии COM и прилагаемого повторителя FoxPro9.exe (32 бит), а не CGI. COM-объекты создаются по мере выполнения запросов от клиентов. В случае ошибки в prg описание этой ошибки возвращается скрипту в переменной ERROR_MESS. Ниже приведены примеры тестового файла py, файла prg и результат его работы. А также результат работы с аналогичным файлом prg, но с ошибкой (отсутствует разрыв последней строки ";"). Беспокоиться об утечках памяти в процессе FoxPro9.exe не надо, в случае значительных утечек, https.net-сервер мягко перезапускает FoxPro9.exe. Повторитель компилирует prg-файлы только при отсутствии исполняемого fxp-файла. Если fxp-файл существует, используется существующий fxp-файл. Поэтому при внесении изменений в prg необходимо удалить соответствкющий fxp-файл.
 ### Пример Python скрипта test.py
