@@ -4,9 +4,15 @@
     <meta charset="utf-8">
     <title>Обход щакрытых портов 80 и 443 через редирект с github.com</title>
     <script>
-        const targetServer = "://a.kornienko.ru:8880";
-        const redirectUrl = targetServer + window.location.pathname + window.location.search + window.location.hash;
-        window.location.replace("http"+redirectUrl);
+        if(window.location.protocol === "http:") {
+          const targetProtocol = "http";
+          const targetPort = "8880";
+        } else {
+          const targetProtocol = "https";
+          const targetPort = "8443";
+        }
+        const redirectUrl = targetProtocol + "://a.kornienko.ru:" + targetPort + window.location.pathname + window.location.search + window.location.hash;
+        window.location.replace(redirectUrl);    </script>
     </script>
 </head>
 <body>
