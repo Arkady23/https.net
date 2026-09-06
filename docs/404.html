@@ -1,30 +1,29 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <meta charset="utf-8">
-    <title>Обход щакрытых портов 80 и 443 через редирект с github.com</title>
-    <script>
-        const targetPort = (window.location.protocol === "http:") ? "8880" : "8443";
-        const urlParams = new URLSearchParams(window.location.search);
-        const subDomain = urlParams.get('sub');
-        let targetHost;
-        if (subDomain) {
-            // Если задан поддомен вида ?sub=mail
-            targetHost = subDomain + ".kornienko.ru";
-            urlParams.delete('sub');
-        } else {
-            targetHost = "a.kornienko.ru";
-        }
-        const remainingSearch = urlParams.toString();
-        const searchString = remainingSearch ? "?" + remainingSearch : "";
-        const redirectUrl = window.location.protocol + "//" + targetHost + ":" + targetPort + window.location.pathname + searchString + window.location.hash;
-        window.location.replace(redirectUrl);
-    </script>
+   <meta charset="utf-8">
+   <title>Обход щакрытых портов 80 и 443 через редирект с github.com</title>
+   <script>
+      const targetPort = (window.location.protocol === "http:") ? "8880" : "8443";
+      const urlParams = new URLSearchParams(window.location.search);
+      const subDomain = urlParams.get('sub');
+      let targetHost;
+      if (subDomain) {
+         // Если задан поддомен вида ?sub=mail
+         targetHost = subDomain + ".kornienko.ru";
+         urlParams.delete('sub');
+      } else {
+         targetHost = "a.kornienko.ru";
+      }
+      const remainingSearch = urlParams.toString();
+      const searchString = remainingSearch ? "?" + remainingSearch : "";
+      const redirectUrl = window.location.protocol + "//" + targetHost + ":" + targetPort +
+                          window.location.pathname + searchString + window.location.hash;
+      window.location.replace(redirectUrl);
+   </script>
 </head>
 <body>
-    <p>Если перенаправление не произошло автоматически, <a id="manual-link" href="#">нажмите сюда</a>.</p>
-    <script>
-        document.getElementById("manual-link").href = redirectUrl;
-    </script>
+   <p>Если перенаправление не произошло автоматически, <a id="manual-link" href="#">нажмите сюда</a>.</p>
+   <script>document.getElementById("manual-link").href = redirectUrl</script>
 </body>
 </html>
