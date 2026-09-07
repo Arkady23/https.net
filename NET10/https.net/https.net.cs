@@ -1,7 +1,7 @@
 //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 //!!                                                     !!
 //!!   https.net сервер на C#.    Автор: A.Б.Корниенко   !!
-//!!   Головной блок              версия от 04.09.2026   !!
+//!!   Головной блок              версия от 07.09.2026   !!
 //!!                                                     !!
 //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
@@ -59,11 +59,11 @@ public class F : Form {
     public const string DI="index.html", stopIconText= hs+" is stopped", initCGI= "initcgi.",
                  logX=hn+".x.log", logY=hn+".y.log", DirectorySessions="Sessions",
            //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-                 ver="version 2.4.0", verD="September 2026";  //!!
+                 ver="version 2.4.1", verD="September 2026";  //!!
            //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     public const  int i8=1500000, i9=2147483647;
-    public static int i, k, port, port1, post, st, qu, bu, bu2, db, db1, it, it1, log9, logi=0,
-                  st1, stf, qu1, tw, iIP, iIP1, maxVFP,
+    public static int i, k, port, port1, Port, Port1, post, st, qu, bu, bu2, db, db1, it, it1,
+                  log9, logi=0, st1, stf, qu1, tw, iIP, iIP1, maxVFP,
                   lastDay= DateTime.UtcNow.Day,  // день последнего запуска прверки сертификата
                   HeaderBufSize= 1024,    // 1 KB  - первоначальный размер буфера заголовков
                   HeaderBufSize2= 3072,   // 3 KB  - последующий размер буфера заголовков
@@ -263,10 +263,10 @@ public class F : Form {
       Args=pfxPw=cfToken=string.Empty;
       CerFile="kornienko.ru.pfx";
       DocumentRoot="../www/";
-      Proc="python.exe";
+      iIP=iIP1=Port=Port1=0;
       DirectoryIndex=DI;
+      Proc="python.exe";
       post=33554432;
-      iIP=iIP1=0;
       log9=10000;
       port1=8880;
       port=8443;
@@ -293,15 +293,15 @@ public class F : Form {
           }
           if(CerFile==string.Empty) {
             log("\tCertificate was not found.");
-            port = 0;
+            port=Port=0;
           } else {
             if(!TryUpdateSslOptions(File.GetLastWriteTimeUtc(CerFile))) {
               log($"\tCertificate error.");
               cert = null;
             }
-            if(cert==null) port=0;
+            if(cert==null) port=Port=0;
           }
-          if(port>0 || port1>0) {
+          if(port>0 || Port>0 || port1>0 || Port1>0) {
             // Вычислить размер поля и формата в журнал для записи номеров сессий
             stf = st.ToString().Length + 1;
 
@@ -402,16 +402,18 @@ public class F : Form {
 
           // Запускаем движок https
           if(Directory.Exists(DirectorySessions)) Directory.Delete(DirectorySessions,true);
-          IPEndPoint ep1 = new IPEndPoint(IPAddress.IPv6Any, port1);
-          IPEndPoint ep = new IPEndPoint(IPAddress.IPv6Any, port);
           ser = new Server();
-          if(ser.Start(ep,ep1)) {
+          if(ser.Start(
+             new IPEndPoint(IPAddress.IPv6Any, port),
+             new IPEndPoint(IPAddress.IPv6Any, Port),
+             new IPEndPoint(IPAddress.IPv6Any, port1),
+             new IPEndPoint(IPAddress.IPv6Any, Port1))) {
 
             // Отобразить значок работы
             nIcon.Icon = ico;  // SystemIcons.Shield;
             nIcon.Text = $"{hs} is running";
-            string pp = (port > 0 && port1 > 0) ? "Both https- and http" :
-                        (port > 0 ? "https" : "http");
+            string pp = ((port > 0 || Port > 0) && (port1 > 0 || Port1 > 0)) ?
+                  "Both https- and http" : (port > 0 || Port > 0 ? "https" : "http");
             log($"\tThe {hs} {ver} is running.\r\n{leftSp}{pp}-sessions are available.");
 
           } else {
@@ -739,19 +741,15 @@ public class F : Form {
               logB(x); 
             } finally {
               // 2. ВСТАВЛЯЕМ СЮДА: Возврат массива в пул после успешной записи
-              if(MemoryMarshal.TryGetArray(x, out ArraySegment<char> segment)) {
-                if(segment.Array != null) {
-                  ArrayPool<char>.Shared.Return(segment.Array);
-                }
+              if(MemoryMarshal.TryGetArray(x, out var segment) && segment.Array != null) {
+                 ArrayPool<char>.Shared.Return(segment.Array);
               }
             }
           } catch (ObjectDisposedException) {
             log9 = 0;
           }
         }
-      } catch (OperationCanceledException) {
-        // Штатный выход, если канал или поток выполнения был отменен
-      }
+      } catch { }
     }
 
     // Таймер сброса буфера на диск раз в 2 секунды
@@ -862,7 +860,7 @@ public class F : Form {
     }
 
     public static int valInt(string x, int maxLength = 11) {
-      if(string.IsNullOrEmpty(x)) return i9;
+      if(x.Length == 0) return i9;
       if(int.TryParse(x.AsSpan(0, x.Length < maxLength ? x.Length : maxLength),
                       out int z)) return z;
       return i9;
@@ -874,6 +872,20 @@ public class F : Form {
         if(i == x.Length || x[i] == 32) return z;
       }
       return i9;
+    }
+
+    // Определить порт/ы иъ строки аршументов
+    (int k1, int k2) valInt2(string x, int kmax) {
+      if(x.Length == 0) return (0, 0);
+      string[] parts = x.Split('/', 2);
+      int k1 = valInt(parts[0]); 
+      int k2 = 0;
+      if(parts.Length > 1) {
+        k2= valInt(parts[1]);
+        if (k2 < 0 || k2 > kmax) k2= 0;
+      }
+      if (k1 < 0 || k1 > kmax) k1= 0;
+      return (k1, k2);
     }
 
     // Запуск скрипта initCGI
@@ -1116,16 +1128,10 @@ public class F : Form {
       for (i = 0; i < args.Length; i++){
         switch (args[i]){
         case "-p":
-          if(toArg(args)){
-            k=valInt(args[i]);
-            port= (k > 0 && k <= p9)? k : 0;
-          }
+          if(toArg(args)) (port,Port)= valInt2(args[i], p9);
           break;
         case "-p1":
-          if(toArg(args)){
-            k=valInt(args[i]);
-            port1= (k > 0 && k <= p9)? k : 0;
-          }
+          if(toArg(args)) (port1,Port1)= valInt2(args[i], p9);
           break;
         case "-b":
           if(toArg(args)){
@@ -1294,8 +1300,10 @@ Parameters:                                                                  Val
              Encrypted Cloudflare API token for automatic deployment of AAAA
              DNS records. The string must be pre-encrypted using the
              protect.net.exe.
-     -p      Port for https-connection. Zero to disable this connection.         {port}
-     -p1     Port for http-connection. Zero to disable this connection.          {port1}
+     -p      Port for https-connection. Format: port[/secondaryPort]. Zero to    {port}{(Port>0? $"/{Port}": "")}
+             disable this connection.
+     -p1     Port for http-connection.  Format: port[/secondaryPort]. Zero to    {port1}{(Port1>0? $"/{Port1}": "")}
+             disable this connection.
      -b      Size of read/write buffers.                                         {bu}
      -q      Allowable number of requests in the queue.                          {qu}
      -q1     Allowed number of requests in the queue per IP.                     {qu1}

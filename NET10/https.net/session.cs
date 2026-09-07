@@ -1,7 +1,7 @@
 //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 //!!                                                         !!
 //!!    https.net сервер на C#.      Автор: A.Б.Корниенко    !!
-//!!    class Session                версия от 25.08.2026    !!
+//!!    class Session                версия от 07.09.2026    !!
 //!!                                                         !!
 //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
@@ -274,7 +274,7 @@ namespace https2 {
                 rentBuffer.AsSpan().TryWrite(
                   $"{cProt}{n_fmt} {IP,-15}{j_fmt}{m_fmt}\t{res.AsSpan(0, nres)}", out i):
                 rentBuffer.AsSpan().TryWrite(
-                  $"{cProt}{n_fmt} {IP}{j_fmt}{m_fmt}\t{res.AsSpan(0, nres)}", out i))
+                  $"{cProt}{n_fmt} {IP,-39}{j_fmt}{m_fmt}\t{res.AsSpan(0, nres)}", out i))
             {
               F.log2(rentBuffer.AsMemory(0, i));
             } else {
