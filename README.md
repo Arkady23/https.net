@@ -18,7 +18,7 @@ The https.net server can update dynamic IPv6 in Cloudflare's AAAA DNS records. T
 Prg scripts are processed using COM technology and the included FoxPro9.exe repeater (32-bit), not CGI. COM objects are created as client requests are processed. If a Prg error occurs, a description of the error is returned to the script in the ERROR_MESS variable. Below are examples of a test py file, a Prg file, and the output from the test. Also included is the output from a similar Prg file, but with an error (the last line break ";" is missing). There is no need to worry about memory leaks in the FoxPro9.exe process; in case of significant leaks, the https.net server will soft-restart FoxPro9.exe.
 ```PowerShell
 PS D:\> D:\work\httpd\https.net.exe /?
-Multithreaded http.net server version 2.4.0, (C) a. September 2026.
+Multithreaded http.net server version 2.4.1, (C) a. September 2026.
 
 USAGE:
     https.net [Parameter1 Value1] [Parameter2 Value2] ...
@@ -47,8 +47,10 @@ Parameters:                                                                  Val
              Encrypted Cloudflare API token for automatic deployment of AAAA
              DNS records. The string must be pre-encrypted using the
              protect.net.exe.
-     -p      Port for https-connection. Zero to disable this connection.         8443
-     -p1     Port for http-connection. Zero to disable this connection.          8880
+     -p      Port for https-connection. Format: port[/secondaryPort]. Zero to    8443
+             disable this connection.
+     -p1     Port for http-connection.  Format: port[/secondaryPort]. Zero to    8880
+             disable this connection.
      -b      Size of read/write buffers.                                         131072
      -q      Allowable number of requests in the queue.                          1500
      -q1     Allowed number of requests in the queue per IP.                     32
@@ -335,3 +337,5 @@ Statistics        Avg      Stdev        Max
 2.3.0 August 2026. Внедрено отслеживание изменения сертификата. Если сертификат изменился сервер мягко обновляет соответствующий объект в памяти программы. Также изменился порт по умолчанию на 8880 в связи с его совместимостью на проксирование на сервисе Cloudflare.  
 2.3.1 August 2026. Добавлена возможность задавать пароль сертификату. Добавлена возможность обновления IPv6 адреса в записях AAAA на сервисе Cloudflare. Адрес берется из свойств сетевой карты, где работает https.net.  
 2.4.0 September 2026. Исправлена не критическая ошибка, имеющая место при отсутствии параметра -cloudflare-enc.  
+2.4.1 September 2026. Теперь https.net умеет слушать по одному дополнительному порту на каждом протоколе (https и http).
+Номер дополнительного порта задается рядом с основным через "/", например: -p 443/8443.  
