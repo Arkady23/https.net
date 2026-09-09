@@ -1,7 +1,7 @@
 //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 //!!                                                     !!
 //!!   https.net сервер на C#.    Автор: A.Б.Корниенко   !!
-//!!   Головной блок              версия от 07.09.2026   !!
+//!!   Головной блок              версия от 09.09.2026   !!
 //!!                                                     !!
 //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
@@ -33,6 +33,8 @@ using System.Collections.Concurrent;
 using System.Net.NetworkInformation;
 using System.Runtime.InteropServices;
 using System.Security.Authentication;
+using Microsoft.Extensions.FileProviders;
+using Microsoft.Extensions.Caching.Memory;
 using System.Security.Cryptography.X509Certificates;
 
 public class F : Form {
@@ -46,8 +48,10 @@ public class F : Form {
     static readonly object logFlush = new object();
     public static ConcurrentStack<int> freeCGI;
     public static ConcurrentStack<int> freeVFP;
+    static PhysicalFileProvider fileProvider;
     IContainer conta = new Container();
     CancellationTokenSource cts;
+    static MemoryCache cache;
     static Server ser;
     NotifyIcon nIcon;
     TextBox textBox1;
@@ -59,7 +63,7 @@ public class F : Form {
     public const string DI="index.html", stopIconText= hs+" is stopped", initCGI= "initcgi.",
                  logX=hn+".x.log", logY=hn+".y.log", DirectorySessions="Sessions",
            //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-                 ver="version 2.4.1", verD="September 2026";  //!!
+                 ver="version 2.4.2", verD="September 2026";  //!!
            //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     public const  int i8=1500000, i9=2147483647;
     public static int i, k, port, port1, Port, Port1, post, st, qu, bu, bu2, db, db1, it, it1,
@@ -70,7 +74,7 @@ public class F : Form {
                   MaxHeaderSize= 29696;   // 29 KB - максимальный размер под заголовки
                                           //         за минусом текущего буфера
     public static string DocumentRoot, Folder=Thread.GetDomain().BaseDirectory, DirectoryIndex,
-                  Proc, Args, Ext, pfxPw, cfToken=string.Empty, logZ=string.Empty;
+                  fullRoot, Proc, Args, Ext, pfxPw, cfToken=string.Empty, logZ=string.Empty;
     static readonly Channel<ReadOnlyMemory<char>> logQueue =
                   Channel.CreateUnbounded<ReadOnlyMemory<char>>(
                   new UnboundedChannelOptions { SingleReader = true });
@@ -238,6 +242,7 @@ public class F : Form {
 
       param = (string[])args.Clone();
       ThreadPool.GetMaxThreads(out s9, out a9);
+
       RunServer(args);
     }
 
@@ -401,6 +406,13 @@ public class F : Form {
           }
 
           // Запускаем движок https
+          fullRoot = Path.GetFullPath(DocumentRoot);
+          fileProvider = new PhysicalFileProvider(fullRoot);
+
+          // Обязательно передаем лимит в 10 000 записей (примерно 4Мб)
+          // для защиты памяти от ботов
+          cache = new MemoryCache(new MemoryCacheOptions { SizeLimit = 10000 });
+
           if(Directory.Exists(DirectorySessions)) Directory.Delete(DirectorySessions,true);
           ser = new Server();
           if(ser.Start(
@@ -638,6 +650,37 @@ public class F : Form {
       });
     }
 
+    // Быстрая проверка наличия файла
+    public static bool FileExists(string relativePath, bool isDir) {
+      // Кодируем тип запроса в ключ (f: для файлов, d: для папок), чтобы кэш их не путал
+      string cacheKey = (isDir ? "d:" : "f:") + relativePath;
+
+      // 1. Проверяем оперативную память (0 аллокаций, если запись уже есть)
+      if (cache.TryGetValue(cacheKey, out bool exists)) return exists;
+
+      // 2. Промах мимо кэша — один раз лезем на диск через провайдер .NET 10
+      Microsoft.Extensions.FileProviders.IFileInfo fileInfo = 
+                           fileProvider.GetFileInfo(relativePath);
+      exists = fileInfo.Exists && (isDir ? fileInfo.IsDirectory : !fileInfo.IsDirectory);
+
+      // 3. Создаем подписку Windows на этот путь и защищаем память от ботов
+      Microsoft.Extensions.Primitives.IChangeToken changeToken =
+                           fileProvider.Watch(relativePath);
+    
+      var cacheOptions = new MemoryCacheEntryOptions { Size = 1 };
+      MemoryCacheEntryExtensions.AddExpirationToken(cacheOptions, changeToken);
+      IDisposable systemRegistration = changeToken.RegisterChangeCallback(_ => { }, null);
+      MemoryCacheEntryExtensions.RegisterPostEvictionCallback(cacheOptions,
+             (key, value, reason, state) => {
+         if (state is IDisposable disposable) disposable.Dispose();
+      }, systemRegistration);
+
+      // Сохраняем результат в RAM
+      cache.Set(cacheKey, exists, cacheOptions);
+
+      return exists;
+    }
+
     static void cgiQuit(in int i) {
        try{ proc[i].StandardInput.WriteLine(string.Empty); }
        catch { }
@@ -825,21 +868,15 @@ public class F : Form {
     }
 
     // Суточная задача, которая уходит в пул потоков
-    static async Task DailyTask() {
+    static void DailyTask() {
       if(!File.Exists(CerFile)) return;
       try {
-        // Чтобы тяжелая задача не отбирала такты у критически важных потоков,
-        // можно искусственно понизить приоритет текущего потока на время выполнения.
-        Thread.CurrentThread.Priority= ThreadPriority.BelowNormal;
 
         // БЛОК САМОЙ СУТОЧНОЙ ЗАДАЧИ
         DateTime newWriteTime = File.GetLastWriteTimeUtc(CerFile);
         if(newWriteTime != CertWriteTime) _= TryUpdateSslOptions(newWriteTime);
 
-      } catch { } finally {
-        // Возвращаем приоритет потока в норму, так как поток вернется в общий ThreadPool
-        Thread.CurrentThread.Priority = ThreadPriority.Normal;
-      }
+      } catch { }
     }
 
     // Проверки IP
@@ -1284,9 +1321,7 @@ USAGE:
 
 Parameters:                                                                  Values:
      -d      Folder containing the domains.                                      {DocumentRoot}
-     -i      Main document is in the folder. The main document in the            {DirectoryIndex}
-             folder specified by the -d parameter is used to display the page
-             with the 404 code - file was not found. To compress traffic,
+     -i      Main document is in the folder. To compress traffic,
              files compressed using gzip method of the name.expansion.gz type
              are supported, for example - index.html.gz or library.js.gz etc.
      -c      Name of the file containing the PFX certificate for the TLS 1.3     {CerFile}

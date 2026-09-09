@@ -1,7 +1,7 @@
 //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 //!!                                                         !!
 //!!    https.net сервер на C#.      Автор: A.Б.Корниенко    !!
-//!!    class Session                версия от 07.09.2026    !!
+//!!    class Session                версия от 09.09.2026    !!
 //!!                                                         !!
 //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
@@ -213,11 +213,11 @@ namespace https2 {
                 } else {
                   putHead(false);
                   nres = 0;
-                  if(F.DocumentRoot.Length + F.DirectoryIndex.Length <= res.Length) {
-                    F.DocumentRoot.AsSpan().CopyTo(res.AsSpan(nres));
+                  if(F.DocumentRoot.Length + 8 <= res.Length) {
+                    F.DocumentRoot.CopyTo(res.AsSpan(nres));
                     nres += F.DocumentRoot.Length;
-                    F.DirectoryIndex.AsSpan().CopyTo(res.AsSpan(nres));
-                    nres += F.DirectoryIndex.Length;
+                    "404.html".CopyTo(res.AsSpan(nres));
+                    nres += 8;
                   }
                   if(!gzExists(false)) {
                     if(!CheckFile()) {
@@ -458,7 +458,7 @@ namespace https2 {
         ReadOnlySpan<byte> subSpan = Before1(host, (byte)':');
         i= 0;
         nres = F.DocumentRoot.Length;
-        F.DocumentRoot.AsSpan().CopyTo(res.AsSpan(0));
+        F.DocumentRoot.CopyTo(res.AsSpan(0));
         try {
 // F.log(" 1. i1=" +i1+" |"+F.UTF8.GetString(resSpan));
 // F.log(" 1. i1=" +i1+" |"+F.UTF8.GetString(buf,i1,reso.Length));
@@ -486,7 +486,7 @@ namespace https2 {
 
           if(res[nres-1] == '/') {
             if(nres + F.DirectoryIndex.Length <= res.Length) {
-              F.DirectoryIndex.AsSpan().CopyTo(res.AsSpan(nres));
+              F.DirectoryIndex.CopyTo(res.AsSpan(nres));
               nres += F.DirectoryIndex.Length;
             }
           }
@@ -499,20 +499,20 @@ namespace https2 {
               i= F.Ext.Length + 1;
               if(nres+i <= res.Length) {
                 res[nres] = '.';
-                F.Ext.AsSpan().CopyTo(res.AsSpan(nres+1));
+                F.Ext.CopyTo(res.AsSpan(nres+1));
                 nres += i;
               }
             } else if(CheckFile(".prg")) {
               extSpan = "prg";
               if(nres + 4 <= res.Length) {
-                ".prg".AsSpan().CopyTo(res.AsSpan(nres));
+                ".prg".CopyTo(res.AsSpan(nres));
                 nres += 4;
               }
             } else if (CheckFile(dir16: 1)) {
               i= F.DirectoryIndex.Length + 1;
               if(nres+i <= res.Length) {
                 res[nres] = '/';
-                F.DirectoryIndex.AsSpan().CopyTo(res.AsSpan(nres + 1));
+                F.DirectoryIndex.CopyTo(res.AsSpan(nres + 1));
                 nres += i;
               }
               extSpan = Path.GetExtension(F.DirectoryIndex.AsSpan());
@@ -520,7 +520,7 @@ namespace https2 {
             } else if(!CheckFile()) {
               extSpan = "html";
               if(nres + 5 <= res.Length) {
-                ".html".AsSpan().CopyTo(res.AsSpan(nres));
+                ".html".CopyTo(res.AsSpan(nres));
                 nres += 5;
               }
             }
@@ -601,13 +601,21 @@ namespace https2 {
         Part3.CopyTo(res.AsSpan(current));
       }
 
-      // 1. Извлекаем из массива строго собранную строку пути нужной длины
-      string finalPathToCheck = res.AsSpan(0, total).ToString();
+      current = F.DocumentRoot.Length;
+      if(total <= current) return false;
 
-      // 2. Вызываем стандартные методы .NET, передавая им строку
-      // dir16 == 0 -> ищем файл, dir16 == 1 (или любое другое) -> ищем папку
-      return dir16 == 0 ? File.Exists(finalPathToCheck) :
-                          Directory.Exists(finalPathToCheck);
+      // Проодготовим строку для быстрой проверки наличия файла
+      ReadOnlySpan<char> relativeRes = res.AsSpan(current, total-current);
+      Span<char> tempPath = stackalloc char[relativeRes.Length];
+      relativeRes.CopyTo(tempPath);
+      for (int i = 0; i < tempPath.Length; i++) {
+        if(tempPath[i] == '/') tempPath[i] = '\\';
+      }
+      string finalPathToCheck = tempPath.ToString();
+
+      // Вызываем метод быстрой проверки наличия файла
+      // dir16 == 0 -> ищем файл, любое другое -> ищем папку
+      return F.FileExists(finalPathToCheck, dir16 != 0);
     }
 
     // Полный путь ресурса
@@ -756,7 +764,7 @@ namespace https2 {
       if(l) {
         putHead(CT);
         isGzip = true;     // Маркер того, что файл сжат
-        ".gz".AsSpan().CopyTo(res.AsSpan(nres));
+        ".gz".CopyTo(res.AsSpan(nres));
         nres += 3;
       }
       return l;
