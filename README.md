@@ -31,9 +31,7 @@ USAGE:
 
 Parameters:                                                                  Values:
      -d      Folder containing the domains.                                      ../www/
-     -i      Main document is in the folder. The main document in the            index.html
-             folder specified by the -d parameter is used to display the page
-             with the 404 code - file was not found. To compress traffic,
+     -i      Main document is in the folder. To compress traffic,
              files compressed using gzip method of the name.expansion.gz type
              are supported, for example - index.html.gz or library.js.gz etc.
      -c      Name of the file containing the PFX certificate for the TLS 1.3     .pfx
@@ -339,3 +337,4 @@ Statistics        Avg      Stdev        Max
 2.4.0 September 2026. Исправлена не критическая ошибка, имеющая место при отсутствии параметра -cloudflare-enc.  
 2.4.1 September 2026. Теперь https.net умеет слушать по одному дополнительному порту на каждом протоколе (https и http).
 Номер дополнительного порта задается рядом с основным через "/", например: -p 443/8443.  
+2.4.2 September 2026. Для ясности файл index.html в корневой папке для доменов переименован в файл 404.html. Добавлен механизм кеширования файлов класс PhysicalFileProvider.  
