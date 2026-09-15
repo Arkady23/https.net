@@ -1,7 +1,7 @@
 //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 //!!                                                     !!
 //!!   https.net сервер на C#.    Автор: A.Б.Корниенко   !!
-//!!   Головной блок              версия от 09.09.2026   !!
+//!!   Головной блок              версия от 15.09.2026   !!
 //!!                                                     !!
 //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
@@ -63,7 +63,7 @@ public class F : Form {
     public const string DI="index.html", stopIconText= hs+" is stopped", initCGI= "initcgi.",
                  logX=hn+".x.log", logY=hn+".y.log", DirectorySessions="Sessions",
            //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-                 ver="version 2.4.2", verD="September 2026";  //!!
+                 ver="version 2.4.3", verD="September 2026";  //!!
            //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     public const  int i8=1500000, i9=2147483647;
     public static int i, k, port, port1, Port, Port1, post, st, qu, bu, bu2, db, db1, it, it1,

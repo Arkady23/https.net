@@ -1,7 +1,7 @@
 //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 //!!                                                         !!
 //!!    https.net сервер на C#.      Автор: A.Б.Корниенко    !!
-//!!    class Session                версия от 09.09.2026    !!
+//!!    class Session                версия от 15.09.2026    !!
 //!!                                                         !!
 //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
@@ -114,177 +114,150 @@ namespace https2 {
       UTF = F.UTF8;                         // Кодировка по умолчанию
     }
 
-    public async Task Start(Socket client, bool Prot) {
+    public async Task Start(Socket client, IPEndPoint p, IPAddress ip, bool Prot) {
       client.NoDelay = true;
-      point = client.RemoteEndPoint as IPEndPoint;
-      IP = point.Address.IsIPv4MappedToIPv6 ? point.Address.MapToIPv4() : point.Address;
-      l1 = F.ifIP(IP);
-      if(l1 && (F.iIP>=F.st1 || F.iIP1>=F.qu1 )) {
+      IP = ip;
+      point = p;
+      isHttps = Prot;
+      if(Prot) {
+        // Гарантированно оживляем источник токенов
+        if(handCts == null || !handCts.TryReset()) {
+          handCts?.Dispose();
+          handCts = new CancellationTokenSource();
+        }
+        handCts.CancelAfter(F.tw);
+
+        try{
+          var Fcert = F.cert;
+          sslStream = new SslStream(new NetworkStream(client, true), false);
+          await sslStream.AuthenticateAsServerAsync(Fcert, handCts.Token);
+          stream = sslStream;
+        }catch (OperationCanceledException) {
+          sslStream?.Dispose();
+          stream = null;
+          F.DecrIP1(IP);          // Человек не виноват за обозреватель интернет
+        }catch(Exception){
+          sslStream?.Dispose();
+          stream = null;
+        }
+      }else{
+        try {
+          stream = new NetworkStream(client,true);
+        } catch(Exception) {
+          stream?.Dispose();
+          stream = null;
+        }
+      }
+      if(stream != null) {
+        F.DecrIP1(IP);
+
+        // Читаем заголовки из потока
+        await getHeadersAsync(stream).ConfigureAwait(false);
+
+        if(eof<0) {
+          stream.Close();
+          client.Close();
+          Init();
+          return;
+        }
+
+        // Заголовки прочитали, фомируем ответ
+        if(R>0) {
+          nbuf = F.bu;
+          if(R>1) {
+            putHead(false);
+            if(CheckFile()) {
+              if(nCharset>0 && !Ascii.EqualsIgnoreCase(buf.AsSpan(iCharset, nCharset),
+                               "utf-8"u8)) {
+                try {
+                   string CharS = UTF.GetString(buf.AsSpan(iCharset,nCharset));
+                   UTF = Encoding.GetEncoding(CharS);
+                } catch { }
+              }
+              if(R==2) {
+                await send_cgi().ConfigureAwait(false);
+              } else {
+                await send_prg().ConfigureAwait(false);
+              }
+            }
+          } else {
+            if(!gzExists(true)) {
+              if(CheckFile()) {
+                putHead(true);
+              } else {
+                putHead(false);
+                nres = 0;
+                if(F.DocumentRoot.Length + 8 <= res.Length) {
+                  F.DocumentRoot.CopyTo(res.AsSpan(nres));
+                  nres += F.DocumentRoot.Length;
+                  "404.html".CopyTo(res.AsSpan(nres));
+                  nres += 8;
+                }
+                if(!gzExists(false)) {
+                  if(!CheckFile()) {
+                    R = 0;
+                    if(nres+1 < res.Length) {
+                      res[nres++]= ' ';
+                      res[nres++]= '-';
+                    }
+                    await failure("404 Not Found"u8).ConfigureAwait(false);
+                  }
+                }
+              }
+            }
+            if(R==1) await typeAsync().ConfigureAwait(false);
+          }
+        } else {
+          if(nres > 0) {
+            if(nres+2 < res.Length) {
+              res[nres++]= ' ';
+              res[nres++]= '-';
+              res[nres++]= '-';
+            }
+            await failure("403 Forbidden"u8).ConfigureAwait(false);
+
+            // На первый раз пропускаем, но счетчик у этого IP увеличиваем
+            if(F.ifIP(IP)) Interlocked.Increment(ref F.iIP);
+          }
+        }
+
+        // Правильное закрытие потока
+        try {
+          await stream.FlushAsync().ConfigureAwait(false);
+          if(Prot) await ((SslStream)stream).ShutdownAsync().ConfigureAwait(false);
+        } finally {
+          stream?.Close();
+        }
+
         client.Close();
-        if(F.iIP==F.st1 || F.iIP1==F.qu1) {
-          char[] rentBuffer = ArrayPool<char>.Shared.Rent(64);
+        if(R > 1) {
+          if(R > 2) {
+            F.clear_prg(m);
+          } else {
+            F.clear_cgi(m);
+          }
+        }
+
+        if(F.log9 > 0) {
+          n = DateTime.UtcNow.Subtract(dt1).TotalMilliseconds;
+          char[] rentBuffer = ArrayPool<char>.Shared.Rent(512);
+          string n_fmt = n > 9999 ? "****" : n.ToString("0000");
+          string m_fmt = R > 1 ? $"/{m}" : "  ";
           char cProt = Prot ? '/' : '|';
           if(IP.AddressFamily == AddressFamily.InterNetwork ?
-                rentBuffer.AsSpan().TryWrite(
-                           $"{cProt}0000 {IP,-15}{j_fmt}  \tIP blocked.", out i) :
-                rentBuffer.AsSpan().TryWrite(
-                           $"{cProt}0000 {IP}{j_fmt}  \tIP blocked.", out i))
+              rentBuffer.AsSpan().TryWrite(
+                $"{cProt}{n_fmt} {IP,-15}{j_fmt}{m_fmt}\t{res.AsSpan(0, nres)}", out i):
+              rentBuffer.AsSpan().TryWrite(
+                $"{cProt}{n_fmt} {IP,-39}{j_fmt}{m_fmt}\t{res.AsSpan(0, nres)}", out i))
           {
             F.log2(rentBuffer.AsMemory(0, i));
           } else {
             ArrayPool<char>.Shared.Return(rentBuffer);
           }
-          Interlocked.Increment(ref F.iIP1);
-          Interlocked.Increment(ref F.iIP);
         }
+        Init();
       } else {
-        if(l1) {
-          Interlocked.Increment(ref F.iIP1);
-          Interlocked.Increment(ref F.iIP);
-        } else {
-          F.IP = IP;
-        }
-        isHttps = Prot;
-        if(Prot) {
-          // Гарантированно оживляем источник токенов
-          if(handCts == null || !handCts.TryReset()) {
-            handCts?.Dispose();
-            handCts = new CancellationTokenSource();
-          }
-          handCts.CancelAfter(F.tw);
-
-          try{
-            var Fcert = F.cert;
-            sslStream = new SslStream(new NetworkStream(client, true), false);
-            await sslStream.AuthenticateAsServerAsync(Fcert, handCts.Token);
-            stream = sslStream;
-          }catch (OperationCanceledException) {
-            sslStream?.Dispose();
-            stream = null;
-            F.DecrIP1(IP);          // Человек не виноват за обозреватель интернет
-          }catch(Exception){
-            sslStream?.Dispose();
-            stream = null;
-          }
-        }else{
-          try {
-            stream = new NetworkStream(client,true);
-          } catch(Exception) {
-            stream?.Dispose();
-            stream = null;
-          }
-        }
-        if(stream != null) {
-          F.DecrIP1(IP);
-
-          // Читаем заголовки из потока
-          await getHeadersAsync(stream).ConfigureAwait(false);
-
-          if(eof<0) {
-            stream.Close();
-            client.Close();
-            Init();
-            return;
-          }
-
-          // Заголовки прочитали, фомируем ответ
-          if(R>0) {
-            nbuf = F.bu;
-            if(R>1) {
-              putHead(false);
-              if(CheckFile()) {
-                if(nCharset>0 && !Ascii.EqualsIgnoreCase(buf.AsSpan(iCharset, nCharset),
-                                 "utf-8"u8)) {
-                  try {
-                     string CharS = UTF.GetString(buf.AsSpan(iCharset,nCharset));
-                     UTF = Encoding.GetEncoding(CharS);
-                  } catch { }
-                }
-                if(R==2) {
-                  await send_cgi().ConfigureAwait(false);
-                } else {
-                  await send_prg().ConfigureAwait(false);
-                }
-              }
-            } else {
-              if(!gzExists(true)) {
-                if(CheckFile()) {
-                  putHead(true);
-                } else {
-                  putHead(false);
-                  nres = 0;
-                  if(F.DocumentRoot.Length + 8 <= res.Length) {
-                    F.DocumentRoot.CopyTo(res.AsSpan(nres));
-                    nres += F.DocumentRoot.Length;
-                    "404.html".CopyTo(res.AsSpan(nres));
-                    nres += 8;
-                  }
-                  if(!gzExists(false)) {
-                    if(!CheckFile()) {
-                      R = 0;
-                      if(nres+1 < res.Length) {
-                        res[nres++]= ' ';
-                        res[nres++]= '-';
-                      }
-                      await failure("404 Not Found"u8).ConfigureAwait(false);
-                    }
-                  }
-                }
-              }
-              if(R==1) await typeAsync().ConfigureAwait(false);
-            }
-          } else {
-            if(nres > 0) {
-              if(nres+2 < res.Length) {
-                res[nres++]= ' ';
-                res[nres++]= '-';
-                res[nres++]= '-';
-              }
-              await failure("403 Forbidden"u8).ConfigureAwait(false);
-
-              // На первый раз пропускаем, но счетчик у этого IP увеличиваем
-              if(F.ifIP(IP)) Interlocked.Increment(ref F.iIP);
-            }
-          }
-
-          // Правильное закрытие потока
-          try {
-            await stream.FlushAsync().ConfigureAwait(false);
-            if(Prot) await ((SslStream)stream).ShutdownAsync().ConfigureAwait(false);
-          } finally {
-            stream?.Close();
-          }
-
-          client.Close();
-          if(R > 1) {
-            if(R > 2) {
-              F.clear_prg(m);
-            } else {
-              F.clear_cgi(m);
-            }
-          }
-
-          if(F.log9 > 0) {
-            n = DateTime.UtcNow.Subtract(dt1).TotalMilliseconds;
-            char[] rentBuffer = ArrayPool<char>.Shared.Rent(512);
-            string n_fmt = n > 9999 ? "****" : n.ToString("0000");
-            string m_fmt = R > 1 ? $"/{m}" : "  ";
-            char cProt = Prot ? '/' : '|';
-            if(IP.AddressFamily == AddressFamily.InterNetwork ?
-                rentBuffer.AsSpan().TryWrite(
-                  $"{cProt}{n_fmt} {IP,-15}{j_fmt}{m_fmt}\t{res.AsSpan(0, nres)}", out i):
-                rentBuffer.AsSpan().TryWrite(
-                  $"{cProt}{n_fmt} {IP,-39}{j_fmt}{m_fmt}\t{res.AsSpan(0, nres)}", out i))
-            {
-              F.log2(rentBuffer.AsMemory(0, i));
-            } else {
-              ArrayPool<char>.Shared.Return(rentBuffer);
-            }
-          }
-          Init();
-        } else {
-          client.Close();
-        }
+        client.Close();
       }
     }
 

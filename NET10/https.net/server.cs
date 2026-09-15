@@ -2,7 +2,7 @@
 //!!                                                     !!
 //!!   https.net сервер на C#.  Авторы: A.Б. Корниенко   !!
 //!!                                    И.И.google.com   !!
-//!!   Серверный движок         версия  от  07.09.2026   !!
+//!!   Серверный движок         версия  от  15.09.2026   !!
 //!!                                                     !!
 //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
@@ -72,22 +72,29 @@ namespace https1 {
 
     // Головной модуль запуска задачи https-сервера
     async Task loopAcceptAsync(Socket listenSocket, bool isHttps) {
-      Socket client;
       while (F.notExit) {
-        try { client = await listenSocket.AcceptAsync(); }
-        catch (ObjectDisposedException) { break; }
-        _ = toSession(client, isHttps);
+        try {
+          _ = toSession(await listenSocket.AcceptAsync(), isHttps);
+        } catch (ObjectDisposedException) {
+          break;
+        }
       }
     }
 
     async Task toSession(Socket s, bool Prot) {
+      IPEndPoint p = s.RemoteEndPoint as IPEndPoint;
+      IPAddress IP = p.Address.IsIPv4MappedToIPv6 ? p.Address.MapToIPv4() : p.Address;
+      if(!isAllowed(s, IP, Prot)) {
+         s.Close();
+         return;
+      }
 
       // Ждем освобождения места в пуле асинхронно (без блокировки потока!)
       if (await poolSemaphore.WaitAsync(F.tw)) {
 
          try {
            if(freeClientsPool.TryPop(out int j)) {
-              await F.session[j].Start(s, Prot);
+              await F.session[j].Start(s, p, IP, Prot);
               freeClientsPool.Push(j);
            } else {
              s.Close();
@@ -114,6 +121,45 @@ namespace https1 {
           ArrayPool<char>.Shared.Return(rentBuffer);
         }
       }
+    }
+
+    bool isAllowed(Socket s, IPAddress IP, bool Prot) {
+      bool l1 = F.ifIP(IP);
+      if(l1 && (F.iIP >= F.st1 || F.iIP1 >= F.qu1)) {
+
+         // Сразу завершаем атаки. Ни ждём ни одного лишнего такта.
+         s.Close();
+
+         blockLog(IP, Prot);
+         return false;
+      }
+      if(l1) {
+         Interlocked.Increment(ref F.iIP1);
+         Interlocked.Increment(ref F.iIP);
+      } else {
+         F.IP = IP;
+      }
+      return true;
+    }
+
+    void blockLog(IPAddress IP, bool Prot) {
+      if(F.iIP == F.st1 || F.iIP1 == F.qu1) {
+         int i;
+         char cProt = Prot? '/': '|';
+         char[] rentBuffer = ArrayPool<char>.Shared.Rent(64);
+         if(IP.AddressFamily == AddressFamily.InterNetwork ?
+               rentBuffer.AsSpan().TryWrite(
+                          $"{cProt}0000 {IP,-15}\tIP blocked.", out i) :
+               rentBuffer.AsSpan().TryWrite(
+                          $"{cProt}0000 {IP,-39}\tIP blocked.", out i))
+         {
+           F.log2(rentBuffer.AsMemory(0, i));
+         } else {
+           ArrayPool<char>.Shared.Return(rentBuffer);
+         }
+      }
+      Interlocked.Increment(ref F.iIP1);
+      Interlocked.Increment(ref F.iIP);
     }
 
     // Остановить сервер
