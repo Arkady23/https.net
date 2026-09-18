@@ -18,7 +18,7 @@ The https.net server can update dynamic IPv6 in Cloudflare's AAAA DNS records. T
 Prg scripts are processed using COM technology and the included FoxPro9.exe repeater (32-bit), not CGI. COM objects are created as client requests are processed. If a Prg error occurs, a description of the error is returned to the script in the ERROR_MESS variable. Below are examples of a test py file, a Prg file, and the output from the test. Also included is the output from a similar Prg file, but with an error (the last line break ";" is missing). There is no need to worry about memory leaks in the FoxPro9.exe process; in case of significant leaks, the https.net server will soft-restart FoxPro9.exe.
 ```PowerShell
 PS D:\> D:\work\httpd\https.net.exe /?
-Multithreaded http.net server version 2.4.3, (C) a. September 2026.
+Multithreaded http.net server version 2.4.4, (C) a. September 2026.
 
 USAGE:
     https.net [Parameter1 Value1] [Parameter2 Value2] ...
@@ -339,3 +339,4 @@ Statistics        Avg      Stdev        Max
 Номер дополнительного порта задается рядом с основным через "/", например: -p 443/8443.  
 2.4.2 September 2026. Для ясности файл index.html в корневой папке для доменов переименован в файл 404.html. Добавлен механизм кеширования файлов класс PhysicalFileProvider. Спасибо ИИ.  
 2.4.3 September 2026. Оптимизация движка.  
+2.4.4 September 2026. Доработана схема обновления динамического IPv6 на CloudFlare при нестабильной работе протокола v6 через IPv4.  
