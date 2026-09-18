@@ -1,7 +1,7 @@
 //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 //!!                                                     !!
 //!!   https.net сервер на C#.    Автор: A.Б.Корниенко   !!
-//!!   Головной блок              версия от 15.09.2026   !!
+//!!   Головной блок              версия от 18.09.2026   !!
 //!!                                                     !!
 //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
@@ -63,7 +63,7 @@ public class F : Form {
     public const string DI="index.html", stopIconText= hs+" is stopped", initCGI= "initcgi.",
                  logX=hn+".x.log", logY=hn+".y.log", DirectorySessions="Sessions",
            //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-                 ver="version 2.4.3", verD="September 2026";  //!!
+                 ver="version 2.4.4", verD="September 2026";  //!!
            //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     public const  int i8=1500000, i9=2147483647;
     public static int i, k, port, port1, Port, Port1, post, st, qu, bu, bu2, db, db1, it, it1,
@@ -185,16 +185,16 @@ public class F : Form {
       this.menu.ShowCheckMargin = false;
       this.menu.ShowImageMargin = false;
 
-      this.menuR.Text = "R&eload";
+      this.menuR.Text = "&Restart";
       this.menuR.Click += new EventHandler(this.menuR_Click);
 
-      this.menuS.Text = "S&tart";
+      this.menuS.Text = "&Start";
       this.menuS.Click += new EventHandler(this.menuS_Click);
 
-      this.menuF.Text = "F&inalize";
+      this.menuF.Text = "St&op";
       this.menuF.Click += new EventHandler(this.menuF_Click);
 
-      this.menuQ.Text = "Q&uit";
+      this.menuQ.Text = "E&xit";
       this.menuQ.Click += new EventHandler(this.menuQ_Click);
 
       // Set up how the form should be displayed.
@@ -240,6 +240,9 @@ public class F : Form {
       // Подписываемся на событие изменения адресов
       NetworkChange.NetworkAddressChanged += OnNetworkAddressChanged;
 
+      // Закрываем старые процессы FoxPro9
+      CleanUpOrphanedFoxPro();
+
       param = (string[])args.Clone();
       ThreadPool.GetMaxThreads(out s9, out a9);
 
@@ -259,6 +262,16 @@ public class F : Form {
         e.Cancel = true;  // кнопка больше не закрывает форму
         this.WindowState = FormWindowState.Minimized;
         this.Hide();
+      }
+    }
+
+    // Закрываем старые экземпляры FoxPro9, потерявшие управление
+    void CleanUpOrphanedFoxPro() {
+      // Находим все процессы по исходному имени файла
+      var processes = Process.GetProcessesByName("foxpro9"); 
+
+      foreach (var proc in processes) {
+        try { proc.Kill(); } catch { }
       }
     }
 
@@ -428,6 +441,9 @@ public class F : Form {
                   "Both https- and http" : (port > 0 || Port > 0 ? "https" : "http");
             log($"\tThe {hs} {ver} is running.\r\n{leftSp}{pp}-sessions are available.");
 
+            // Имитируем сетевое событие для синхронизации IP при старте
+            OnNetworkAddressChanged(null, null);
+
           } else {
             notExit = false;   // Отметить для возможности снятия, т.к. сервер запущен
 
@@ -503,8 +519,7 @@ public class F : Form {
         cts = new CancellationTokenSource();
         _= Task.Run(async () => {
            try {
-             // Ждем 3 секунды. Если за это время прилетит еще одно событие - этот таск отменится
-             await Task.Delay(3000, cts.Token); 
+             await Task.Delay(3000, cts.Token);          // Ждем 3 секунды
       
              // И только когда сеть «успокоилась», вызываем ваш метод обновления
              await UpdateCfAsync();
@@ -560,29 +575,62 @@ public class F : Form {
     // API-запрос
     async Task<string> RequestAsync(HttpMethod method, string url, string token,
                        string jsonBody = "") {
+      string host = new Uri(url).Host;
+      string targetUrl = url;
+      try {
+        // Динамически запрашиваем у ОС актуальные IP-адреса для этого хоста
+        IPAddress[] ipAddresses = System.Net.Dns.GetHostAddresses(host);
+        IPAddress targetIp = null;
+
+        // 1. Быстрый поиск IPv4 (так как он сейчас работает стабильно)
+        foreach (var ip in ipAddresses) {
+            if (ip.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork) {
+                targetIp = ip;
+                break;
+            }
+        }
+
+        // 2. Если IPv4 не найден (сеть IPv6-Only), берем первый доступный IPv6
+        if (targetIp == null && ipAddresses.Length > 0) {
+            targetIp = ipAddresses[0];
+        }
+
+        if (targetIp != null) {
+            // Мягко заменяем текстовый домен в URL на динамический IP
+            targetUrl = url.Replace(host, targetIp.ToString());
+        }
+      } catch { /* Если DNS сбоит, оставляем оригинальный URL */ }
+
       for (int attempt = 1; attempt <= 2; attempt++) {
         try {
-          using var request = new HttpRequestMessage(method, url);
+          using var request = new HttpRequestMessage(method, targetUrl);
           request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
           request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+          
+          // Сообщаем Cloudflare оригинальный домен, чтобы запрос прошел успешно
+          request.Headers.Host = host; 
+
           if(jsonBody.Length > 0) {
             request.Content = new StringContent(jsonBody, Encoding.UTF8, "application/json");
           }
+
           using var response =
                 await client.SendAsync(request, HttpCompletionOption.ResponseContentRead);
-          if (!response.IsSuccessStatusCode && attempt == 1) {
-             await Task.Delay(1000);
-             continue;
+          if(response.IsSuccessStatusCode) {
+            return await response.Content.ReadAsStringAsync();
+          } else if(attempt == 1) {
+            await Task.Delay(5000);
+            continue;
           }
-          return await response.Content.ReadAsStringAsync();
         } catch {
-          if (attempt == 1) await Task.Delay(1000);
+          if (attempt == 1) await Task.Delay(5000);
         }
       }
+
+      // Ни одна попытка не увенчалась успехом. Выводим сообщение об ошибке.
       int i = 0;
       char[] rentBuffer = ArrayPool<char>.Shared.Rent(128);
-      string host = Uri.TryCreate(url, UriKind.Absolute, out var uri)? uri.Host : "unknown";
-      if (rentBuffer.AsSpan().TryWrite($"\tError: Request to {host} failed!", out i)) {
+      if (rentBuffer.AsSpan().TryWrite($"\tError. Request to {host} failed.", out i)) {
          log2(rentBuffer.AsMemory(0, i));
       } else {
         ArrayPool<char>.Shared.Return(rentBuffer);
