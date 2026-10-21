@@ -1,7 +1,7 @@
 //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 //!!                                                         !!
 //!!    https.net сервер на C#.      Автор: A.Б.Корниенко    !!
-//!!    class Session                версия от 15.09.2026    !!
+//!!    class Session                версия от 01.10.2026    !!
 //!!                                                         !!
 //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
@@ -84,9 +84,8 @@ namespace https2 {
       Init();
     }
 
+    // Подготовка переменных по максимуму
     void Init() {
-
-      // Подготовка переменных по максимуму
       if(nfilename > 0) {
         var dirInfo = new DirectoryInfo(new string(dirname, 0, ndirname));
         if (dirInfo.Exists) dirInfo.Delete(true);
@@ -446,7 +445,7 @@ namespace https2 {
           // Сработает ТОЛЬКО если буфер res оказался меньше, чем пришедший URL
           // Здесь можно отдать ошибку 414 URL Too Long
           char[] rentBuffer = ArrayPool<char>.Shared.Rent(32);
-          if(rentBuffer.AsSpan().TryWrite($"\tError: URL buffer overflow!",
+          if(rentBuffer.AsSpan().TryWrite($"\tError. URL buffer overflow!",
                         out i)) {
             F.log2(rentBuffer.AsMemory(0, i));
           } else {

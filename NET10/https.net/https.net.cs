@@ -1,7 +1,7 @@
 //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 //!!                                                     !!
 //!!   https.net сервер на C#.    Автор: A.Б.Корниенко   !!
-//!!   Головной блок              версия от 18.09.2026   !!
+//!!   Головной блок              версия от 21.10.2026   !!
 //!!                                                     !!
 //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
@@ -63,7 +63,7 @@ public class F : Form {
     public const string DI="index.html", stopIconText= hs+" is stopped", initCGI= "initcgi.",
                  logX=hn+".x.log", logY=hn+".y.log", DirectorySessions="Sessions",
            //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-                 ver="version 2.4.4", verD="September 2026";  //!!
+                 ver="version 2.5.0", verD="October 2026";    //!!
            //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     public const  int i8=1500000, i9=2147483647;
     public static int i, k, port, port1, Port, Port1, post, st, qu, bu, bu2, db, db1, it, it1,
@@ -573,49 +573,47 @@ public class F : Form {
     }
 
     // API-запрос
-    async Task<string> RequestAsync(HttpMethod method, string url, string token,
-                       string jsonBody = "") {
-      string host = new Uri(url).Host;
-      string targetUrl = url;
-      try {
-        // Динамически запрашиваем у ОС актуальные IP-адреса для этого хоста
-        IPAddress[] ipAddresses = System.Net.Dns.GetHostAddresses(host);
-        IPAddress targetIp = null;
-
-        // 1. Быстрый поиск IPv4 (так как он сейчас работает стабильно)
-        foreach (var ip in ipAddresses) {
-            if (ip.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork) {
-                targetIp = ip;
-                break;
-            }
-        }
-
-        // 2. Если IPv4 не найден (сеть IPv6-Only), берем первый доступный IPv6
-        if (targetIp == null && ipAddresses.Length > 0) {
-            targetIp = ipAddresses[0];
-        }
-
-        if (targetIp != null) {
-            // Мягко заменяем текстовый домен в URL на динамический IP
-            targetUrl = url.Replace(host, targetIp.ToString());
-        }
-      } catch { /* Если DNS сбоит, оставляем оригинальный URL */ }
+    async Task<string> RequestAsync(HttpMethod method, string url, string token, string jsonBody = "") {
+                       string host = new Uri(url).Host;
+      
+      IPAddress[] ipAddresses = Array.Empty<IPAddress>();
+      try { ipAddresses = System.Net.Dns.GetHostAddresses(host); } catch { }
 
       for (int attempt = 1; attempt <= 2; attempt++) {
+        string targetUrl = url;
+        try {
+          if (ipAddresses.Length > 0) {
+            IPAddress targetIp = null;
+            // В 1-й попытке ищем IPv4, во 2-й — IPv6
+            var targetFamily = attempt == 1 ? AddressFamily.InterNetwork : AddressFamily.InterNetworkV6;
+
+            for (int i = 0; i < ipAddresses.Length; i++) {
+                if (ipAddresses[i].AddressFamily == targetFamily) {
+                    targetIp = ipAddresses[i];
+                    break;
+                }
+            }
+
+            // Резерв: если нужный протокол не найден, берем первый попавшийся
+            if (targetIp == null) targetIp = ipAddresses[0];
+
+            // Форматируем строку (для IPv6 нужны скобки [])
+            string ipStr = targetIp.AddressFamily == AddressFamily.InterNetworkV6 ? $"[{targetIp}]" : $"{targetIp}";
+            targetUrl = url.Replace(host, ipStr);
+          }
+        } catch { }
+
         try {
           using var request = new HttpRequestMessage(method, targetUrl);
           request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
           request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
-          
-          // Сообщаем Cloudflare оригинальный домен, чтобы запрос прошел успешно
           request.Headers.Host = host; 
 
           if(jsonBody.Length > 0) {
             request.Content = new StringContent(jsonBody, Encoding.UTF8, "application/json");
           }
 
-          using var response =
-                await client.SendAsync(request, HttpCompletionOption.ResponseContentRead);
+          using var response = await client.SendAsync(request, HttpCompletionOption.ResponseContentRead);
           if(response.IsSuccessStatusCode) {
             return await response.Content.ReadAsStringAsync();
           } else if(attempt == 1) {
@@ -627,11 +625,10 @@ public class F : Form {
         }
       }
 
-      // Ни одна попытка не увенчалась успехом. Выводим сообщение об ошибке.
-      int i = 0;
+      int k = 0;
       char[] rentBuffer = ArrayPool<char>.Shared.Rent(128);
-      if (rentBuffer.AsSpan().TryWrite($"\tError. Request to {host} failed.", out i)) {
-         log2(rentBuffer.AsMemory(0, i));
+      if (rentBuffer.AsSpan().TryWrite($"\tError. Request to {host} failed.", out k)) {
+         log2(rentBuffer.AsMemory(0, k));
       } else {
         ArrayPool<char>.Shared.Return(rentBuffer);
       }
@@ -1128,7 +1125,7 @@ public class F : Form {
           }
           int seed = 0;
           foreach (char c in machineId) {
-            seed = (seed * 31) + c;
+            seed = (((seed << 5) - seed) + c) & 0x3FFFFFF;
           }
           return seed;
         }
