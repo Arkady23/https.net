@@ -1,7 +1,7 @@
 //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 //!!                                                     !!
 //!!   https.net сервер на C#.    Автор: A.Б.Корниенко   !!
-//!!   Головной блок              версия от 21.10.2026   !!
+//!!   Головной блок              версия от 22.10.2026   !!
 //!!                                                     !!
 //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
@@ -63,7 +63,7 @@ public class F : Form {
     public const string DI="index.html", stopIconText= hs+" is stopped", initCGI= "initcgi.",
                  logX=hn+".x.log", logY=hn+".y.log", DirectorySessions="Sessions",
            //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-                 ver="version 2.5.0", verD="October 2026";    //!!
+                 ver="version 2.5.1", verD="October 2026";    //!!
            //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     public const  int i8=1500000, i9=2147483647;
     public static int i, k, port, port1, Port, Port1, post, st, qu, bu, bu2, db, db1, it, it1,
@@ -1085,33 +1085,29 @@ public class F : Form {
     }
 
     string unProtect(string enc) {
-      if (enc.Length < 8) return string.Empty;
-      int i, j;
-      int seed = GetMachineSeed();
-      char[] chars = enc.ToCharArray();
-      char[] SafeAlphabet =
-              "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789".ToCharArray();
-      Random rand = new Random(seed);
-      int[] swapIndices = new int[chars.Length];
-      for (i = chars.Length - 1; i > 0; i--) {
-        swapIndices[i] = rand.Next(0, i + 1);
+      if(enc.Length > 1) {
+        const byte b4=4, b64=64, b70=70, b91=91;
+        Encoding win1251 = Encoding.GetEncoding(1251);
+        byte[] b1 = new Byte[enc.Length];
+        win1251.GetBytes(enc,0,b1.Length,b1,0);
+        Random rnd2 = new Random(GetMachineSeed());
+        byte[] bs = new Byte[b1.Length];
+        byte[] bb = new Byte[b1.Length];
+        for(int p=0; p<b1.Length; p++) bs[p] = (byte)p;
+        rnd2.NextBytes(bb);
+        Array.Sort(bb,bs);
+        Array.Sort(bs,b1);
+        byte len = b1[0];
+        if(len<b64) {
+          len += b4;
+        } else{
+          len -= (len<b91 ? b64 : b70);
+        }
+        if(b1.Length>len) {
+          return win1251.GetString(b1,1,len);
+        }
       }
-      for (i = 1; i < chars.Length; i++) {
-        char temp = chars[i];
-        j = swapIndices[i];
-        chars[i] = chars[j];
-        chars[j] = temp;
-      }
-      char lenChar1 = chars[0];
-      char lenChar2 = chars[1];
-      int idx1 = Array.IndexOf(SafeAlphabet, lenChar1);
-      int idx2 = Array.IndexOf(SafeAlphabet, lenChar2);
-      if (idx1 == -1 || idx2 == -1) return string.Empty;
-      int originalLength = (idx1 * SafeAlphabet.Length) + idx2;
-      if (originalLength <= 0 || originalLength > 92 || originalLength > chars.Length - 2) {
-        return string.Empty;
-      }
-      return new string(chars, 2, originalLength);
+      return string.Empty;
     }
 
     int GetMachineSeed() {
