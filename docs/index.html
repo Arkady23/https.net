@@ -1,21 +1,128 @@
 <!DOCTYPE html>
-<html>
+<html lang="ru">
 <head>
-   <meta charset="utf-8">
-   <meta name="robots" content="noindex, follow">
-   <title>Обход закрытых портов 80 и 443 на IPv4 через редирект с github.com</title>
-   <noscript><meta http-equiv="refresh" content="2; url=https://kornienko.ru:8443"></noscript>
-   <script>
-      const targetPort = (window.location.protocol === "http:") ? "8880" : "8443";
-      const urlParams = new URLSearchParams(window.location.search);
-      const remainingSearch = urlParams.toString();
-      const searchString = remainingSearch ? "?" + remainingSearch : "";
-      const redirectUrl = window.location.protocol + "//kornienko.ru:" + targetPort +
-                          window.location.pathname + searchString + window.location.hash;
-      window.location.replace(redirectUrl);
-   </script>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta name="author" content="Корниенко Аркадий Борисович">
+<link rel="canonical" href="https://kornienko.ru/">
+<title>Scientific Research Automation Center</title>
+<style>
+  body {
+    background-color: #9493AB;
+    padding: 0;
+    margin: 0;
+  }
+  h1 {
+    margin: clamp(15px, 3vw, 30px) 0 15px 0;
+    font-size: clamp(22px, 5vw, 32px);
+    line-height: 1.1;
+    font-weight: 600;
+  }
+  h2 {
+    margin: 10px 0 10px 0;
+    font-size: 1.5em;
+  }
+  a:visited { color: #800000 }
+  a:link    { color: #000080 }
+  p    { text-align: justify }
+  li, i, p { font-family: Arial, Verdana, Helvetica, sans-serif }
+
+  .top { vertical-align: top }
+  .right { text-align: right }
+  .br  { height: 1.25em }
+  .br2 { height: 2.25em }
+  .bottom { vertical-align: bottom }
+  .br, .br2 { display: block; width: 100% }
+  .width100 { width: 100%; border-spacing: 0 }
+  .page {
+    margin: 0 auto;
+    width: min(95%, 690px);
+    background-color: #FFF;
+    border: 1px solid #000;
+    box-sizing: border-box;
+    --p: clamp(18px, 5vw, 40px);
+    padding: var(--p) var(--p) var(--p) clamp(18px, 8vw, 80px);
+  }
+  .copyright {
+    margin: 12px auto 5px auto;
+    text-align: center;
+    padding: 0 10px;
+    font-size: 10px;
+    color: #a0a0a0;
+  }
+  .email {
+    display: inline-block;
+    margin-right: 5px;
+    font-size: 12px;
+  }
+  .rev {
+    unicode-bidi: bidi-override;
+    direction: rtl;
+  }
+  @media print {
+    .page {
+      border: none;
+      padding: 0 0 0 10mm;
+      width: 100%; max-width: none;
+    }
+  }
+</style>
 </head>
-<body>
-   <p>Если перенаправление не произошло автоматически, <a href="https://kornienko.ru:8443">нажмите сюда</a>.</p>
-</body>
-</html>
+<BODY>
+<div class="br2"></div>
+<div class="page">
+
+  <TABLE class="width100">
+	<TR class="top">
+		<TD>
+		<H2>Scientific Research Automation Center</H2>
+		<H3>Vladivostok time: <span id="ti"></span></H3>
+		<td class="right bottom">
+			<div class="br"></div>
+			<div class="email">E-mail: <span class="rev">ur.okneinrok@a</span></div>
+  </TABLE>
+  <HR>
+<p>
+<H1>Текущие проекты</H1>
+<ul>
+  <li>Средства разработки
+  <div class="br"></div>
+  <ol>
+    <li><a href="https://vfp.kornienko.ru:8443">Статья о MS Visual FoxPro в современных условиях</a></li>
+    <li><a href="https://github.com/Arkady23/http.net-https.net">Web-серверы https.net и http.net с поддержкой MS Visual FoxPro</a></li>
+    <li><a href="https://github.com/Arkady23/VFP.memlib-VFP.memlib32">Привлечение дополнительной памяти в MS Visual FoxPro через COM VFP.memlib32 или VFP.memlib</a></li>
+    <li><a href="https://github.com/Arkady23/COM.SQLite-COM.SQLite32">Использование БД SQLite3 в MS Visual FoxPro с помощью COM.SQLite32 или COM.SQLite</a></li>
+  </ol>
+  </li>
+  <div class="br"></div>
+  <li>Разработки для прочих сфер деятелльности
+  <div class="br"></div>
+  <ol start="5">
+    <li><a href="https://habr.com/ru/articles/831662/">Статья на habr.com об интерполяции кривыми Базье</a></li>
+    <li><a href="https://a.kornienko.ru:8443/ip1/">Одномерная интерполяция через заданные точки на основе геометрических принципов Безье online</a></li>
+    <li><a href="https://a.kornienko.ru:8443/ip21/">Двумерная интерполяция через заданные точки на основе геометрических принципов Безье online</a></li>
+    <li><a href="https://rich.kornienko.ru:8443">Моделирование распространения подводного шума на мелководье online</a></li>
+    <li><a href="https://github.com/Arkady23/notifier.net">Оповещатель о приходе новых emails: notifier.net и gnotifier.net с открытым исходным кодом</a></li>
+    <li><a href="https://sun.kornienko.ru:8443">Портал личных кабинетов ТСЖ многоквартирного дома</a></li>
+  </ol>
+  </li>
+</ul>
+
+<div class="br2"></div>
+<HR>
+<div class="copyright">&copy; a.kornienko.ru. All rights reserved.</div>
+
+</div>
+<div class="br2"></div>
+</BODY>
+<script>
+vt();
+function vt(){
+  var d=new Date(),c=d.toGMTString(),s=c.substr(c.length-12,2),
+      k=parseInt(s.substr(0,1)=="0"?s.substr(1):s);
+  if(k>13){k-=14}else{k+=10}
+  document.getElementById("ti").innerHTML=k.toString()+c.substr(c.length-10,6);
+  setTimeout("vt()",500);
+}
+</script>
+</HTML>
