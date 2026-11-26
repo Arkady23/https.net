@@ -181,7 +181,8 @@ public class Post {
                                                              Stream input) {
     using var reader = new StreamReader(input, Encoding.UTF8, leaveOpen: true);
     string STD_INPUT = await reader.ReadToEndAsync();
-    string DT = DateTime.Now.ToString("ddd MMM dd HH:mm:ss yyyy", System.Globalization.CultureInfo.InvariantCulture);
+    string DT = DateTime.Now.ToString("ddd MMM dd HH:mm:ss yyyy",
+                             System.Globalization.CultureInfo.InvariantCulture);
 
     string resp = $"Content-Type: text/plain; charset=utf-8\r\n\r\n{DT} response body: {STD_INPUT}";
     return (null, Encoding.UTF8.GetBytes(resp));
