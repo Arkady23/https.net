@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+</head>
+<html lang="ru">
+<body>
+<h2>Проверка отправки текста с заголовком (html в кодировке UTF-8)</h2>
+<form action="javascript:testPost('Post')">
+Content-Type:<br>
+<input type="text" value='application/json; charset=utf-8' size="40"><br><br>
+Body:<br>
+<input type="text" value='{"newValue": "abcd-АБВГ-abcd"}' size="40"><br><br>
+<input type='submit' value='Post'>
+</form><br>
+Ответ:<br>
+<span id="otvet"></span>
+<script>
+async function testPost(url){
+  h=document.getElementsByTagName('INPUT')[0].value;
+  b=document.getElementsByTagName('INPUT')[1].value;
+  req=await fetch(url,{ method:'POST',headers:{ 'Content-Type':h },body: b })
+  document.getElementById("otvet").innerHTML = await req.text();
+}
+</script>
+</body>
+</html>
