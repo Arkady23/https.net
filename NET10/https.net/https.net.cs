@@ -1,7 +1,7 @@
 //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 //!!                                                     !!
 //!!   https.net сервер на C#.    Автор: A.Б.Корниенко   !!
-//!!   Головной блок              версия от 22.10.2026   !!
+//!!   Головной блок              версия от 26.11.2026   !!
 //!!                                                     !!
 //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
@@ -18,12 +18,14 @@ using Microsoft.Win32;
 using System.Net.Http;
 using System.Text.Json;
 using System.Threading;
+using System.Reflection;
 using System.Net.Sockets;
 using System.Diagnostics;
 using System.Buffers.Text;
 using System.Net.Security;
 using System.Windows.Forms;
 using System.ComponentModel;
+using System.Runtime.Loader;
 using System.Threading.Tasks;
 using System.Net.Http.Headers;
 using System.Threading.Channels;
@@ -38,15 +40,35 @@ using Microsoft.Extensions.Caching.Memory;
 using System.Security.Cryptography.X509Certificates;
 
 public class F : Form {
-    public static readonly Encoding UTF8 = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false);
-    static readonly HttpClient client = new HttpClient();
+    public static readonly Encoding UTF8= new UTF8Encoding(encoderShouldEmitUTF8Identifier:false);
+    static readonly HttpRequestOptionsKey<AddressFamily> FamilyKey = new("AddressFamily");
+    static readonly HttpClient client = new(new SocketsHttpHandler {
+      ConnectCallback= async (ctx, ct) => {
+        var ips = await Dns.GetHostAddressesAsync(ctx.DnsEndPoint.Host, ct);
+        IPAddress ip = ips[0];
+        if (ctx.InitialRequestMessage != null &&
+            ctx.InitialRequestMessage.Options.TryGetValue(FamilyKey, out var fam)) {
+          var found = Array.Find(ips, x => x.AddressFamily == fam);
+          if (found != null) ip = found;
+        }
+        var socket = new Socket(ip.AddressFamily, SocketType.Stream, ProtocolType.Tcp) {
+            NoDelay = true
+        };
+        try {
+          await socket.ConnectAsync(ip, ctx.DnsEndPoint.Port, ct);
+          return new NetworkStream(socket, ownsSocket: true);
+        } catch {
+          socket.Dispose();
+          throw;
+        }
+      }
+    }) { Timeout = TimeSpan.FromSeconds(15) };
     ToolStripMenuItem menuQ = new ToolStripMenuItem();
     ToolStripMenuItem menuF = new ToolStripMenuItem();
     ToolStripMenuItem menuS = new ToolStripMenuItem();
     ToolStripMenuItem menuR = new ToolStripMenuItem();
     ContextMenuStrip menu = new ContextMenuStrip();
     static readonly object logFlush = new object();
-    public static ConcurrentStack<int> freeCGI;
     public static ConcurrentStack<int> freeVFP;
     static PhysicalFileProvider fileProvider;
     IContainer conta = new Container();
@@ -60,26 +82,26 @@ public class F : Form {
     const string hn="https.net";
     const string fn=hn+".xml", fn_=hn+"_.xml",
                  hs=hn+" server", leftSp="                       \t";
-    public const string DI="index.html", stopIconText= hs+" is stopped", initCGI= "initcgi.",
+    public const string DI="index.html", stopIconText= hs+" is stopped",
                  logX=hn+".x.log", logY=hn+".y.log", DirectorySessions="Sessions",
            //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-                 ver="version 2.5.1", verD="October 2026";    //!!
+                 ver="version 2.6.0", verD="November 2026";   //!!
            //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     public const  int i8=1500000, i9=2147483647;
-    public static int i, k, port, port1, Port, Port1, post, st, qu, bu, bu2, db, db1, it, it1,
-                  log9, logi=0, st1, stf, qu1, tw, iIP, iIP1, maxVFP,
+    public static int i, k, port, port1, Port, Port1, post, st, qu, bu, bu2, db, db1, maxVFP,
+                  log9, logi=0, st1, stf, qu1, tw, iIP, iIP1,
                   lastDay= DateTime.UtcNow.Day,  // день последнего запуска прверки сертификата
                   HeaderBufSize= 1024,    // 1 KB  - первоначальный размер буфера заголовков
                   HeaderBufSize2= 3072,   // 3 KB  - последующий размер буфера заголовков
                   MaxHeaderSize= 29696;   // 29 KB - максимальный размер под заголовки
                                           //         за минусом текущего буфера
-    public static string DocumentRoot, Folder=Thread.GetDomain().BaseDirectory, DirectoryIndex,
-                  fullRoot, Proc, Args, Ext, pfxPw, cfToken=string.Empty, logZ=string.Empty;
+    public static string DocumentRoot, Folder=Thread.GetDomain().BaseDirectory, DirectoryCs,
+                  DirectoryIndex, fullRoot, pfxPw, cfToken=string.Empty, logZ=string.Empty;
     static readonly Channel<ReadOnlyMemory<char>> logQueue =
                   Channel.CreateUnbounded<ReadOnlyMemory<char>>(
                   new UnboundedChannelOptions { SingleReader = true });
     private static string Fullexe = Folder+hn+".exe";
-    public static bool notExit=false, notQuit=true, cgia, VFP9, VFPclr;
+    public static bool notExit=false, notQuit=true, VFP9, VFPclr;
     public static Icon ico = Icon.ExtractAssociatedIcon(Fullexe);
     public static readonly byte[] CachedDateBytes = new byte[29];
     public static SslServerAuthenticationOptions cert = null;
@@ -89,16 +111,33 @@ public class F : Form {
     public static StreamWriter logSW = null;
     public static Session[] session = null;
     public static FileStream logFS = null;
-    public static ProcessStartInfo[] cgi;
     public static dynamic[] vfp = null;
     static string IPv6 = string.Empty;
-    public static byte[] vfpb, cgib;
     public static Type vfpa = null;
-    public static Process[] proc;
+    public static byte[] vfpb;
     public static int[] vfpi;
     static string CerFile;
     int a9=1000, s9=32767;
     bool l=true;      // Аргументы запуска верные
+
+    // Делегат cs-скрипта: принимает (env, inputStream),
+    //                     возвращает (строку статуса, output)
+    public delegate Task<(string status, byte[] body)> ScriptDelegate(
+                    Dictionary<string, string> env, Stream input);
+
+    // Запись в кэше для одного файла index.dll
+    public sealed class DllCacheEntry {
+      public AssemblyLoadContext Context;
+      public Dictionary<string, ScriptDelegate> Scripts;
+    }
+
+    // Словарь путей к index.dll
+    public static readonly ConcurrentDictionary<string, int> Dlls =
+                           new(StringComparer.OrdinalIgnoreCase);
+
+    public static DllCacheEntry[] aDll = new DllCacheEntry[256];
+    static readonly object dllLock = new();
+    static int nDlls= -1;
 
     public class DnsRecord {
        public string ZoneId { get; set; }
@@ -278,31 +317,27 @@ public class F : Form {
     private async void RunServer(string[] args){
 
       // Установить значения сервера по умолчанию
-      Args=pfxPw=cfToken=string.Empty;
+      pfxPw=cfToken=string.Empty;
       CerFile="kornienko.ru.pfx";
       DocumentRoot="../www/";
       iIP=iIP1=Port=Port1=0;
       DirectoryIndex=DI;
-      Proc="python.exe";
       post=33554432;
       log9=10000;
       port1=8880;
       port=8443;
       bu=131072;
-      Ext="pyc";
-      db=it=32;
       tw=5000;
       qu=1500;
       st=500;
       qu1=32;
       st1=16;
+      db=32;
       db1=2;
-      it1=2;
 
       if(getArgs(args)){
         if(notQuit) {
           InitLogging2();
-          if(Args.Length > 0) Args+=" ";
 
           // Создать объект cert
           if(!File.Exists(CerFile)) {
@@ -357,28 +392,6 @@ public class F : Form {
           }
         }
         if(notExit) {
-          // Запустить экземпляр CGI
-          cgib = new byte[it];
-          proc = new Process[it];
-          cgi = new ProcessStartInfo[it];
-          cgia = !start_CGI(0,1);
-          if(cgia) {
-            if(it1>0) {
-              if(it1>db) it1=it;
-              for (i=1; i<it1; i++) if(start_CGI(i,1)) break;
-            } else {
-              cgiQuit(in it1);
-              cgib[0]=0;
-            }
-
-            // Свободные номера просессов для CGI
-            freeCGI = new ConcurrentStack<int>();
-            for (i=it; i>0; ) freeCGI.Push(--i);
-
-          } else {
-            log("\tThe \""+Proc+("\" interpreter or\r\n".PadRight(41))+
-                "\tthe \""+DocumentRoot+initCGI+Ext+"\" script could not be run.");
-          }
 
           // Запустить и настроить экземпляр FoxPro9
           VFPclr = false;
@@ -478,12 +491,6 @@ public class F : Form {
         // Отобразить значок выключения
         this.StopIcon();
 
-        // Закрыть все процессы интерпретатора
-        if(cgia) for(i=0; i<it; i++) if(cgib[i]>0) cgiQuit(in i);
-        proc = null;
-        cgib = null;
-        cgi = null;
-
         // Закрыть все процессы VFP
         if(vfpa != null) for(i=0; i<db; i++) if(vfpb[i]>0) vfpQuit(in i);
         vfpb = null;
@@ -574,40 +581,13 @@ public class F : Form {
 
     // API-запрос
     async Task<string> RequestAsync(HttpMethod method, string url, string token, string jsonBody = "") {
-                       string host = new Uri(url).Host;
-      
-      IPAddress[] ipAddresses = Array.Empty<IPAddress>();
-      try { ipAddresses = System.Net.Dns.GetHostAddresses(host); } catch { }
-
       for (int attempt = 1; attempt <= 2; attempt++) {
-        string targetUrl = url;
         try {
-          if (ipAddresses.Length > 0) {
-            IPAddress targetIp = null;
-            // В 1-й попытке ищем IPv4, во 2-й — IPv6
-            var targetFamily = attempt == 1 ? AddressFamily.InterNetwork : AddressFamily.InterNetworkV6;
-
-            for (int i = 0; i < ipAddresses.Length; i++) {
-                if (ipAddresses[i].AddressFamily == targetFamily) {
-                    targetIp = ipAddresses[i];
-                    break;
-                }
-            }
-
-            // Резерв: если нужный протокол не найден, берем первый попавшийся
-            if (targetIp == null) targetIp = ipAddresses[0];
-
-            // Форматируем строку (для IPv6 нужны скобки [])
-            string ipStr = targetIp.AddressFamily == AddressFamily.InterNetworkV6 ? $"[{targetIp}]" : $"{targetIp}";
-            targetUrl = url.Replace(host, ipStr);
-          }
-        } catch { }
-
-        try {
-          using var request = new HttpRequestMessage(method, targetUrl);
+          using var request = new HttpRequestMessage(method, url);
+          request.Options.Set(FamilyKey, attempt == 1 ?
+                  AddressFamily.InterNetwork : AddressFamily.InterNetworkV6);
           request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
           request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
-          request.Headers.Host = host; 
 
           if(jsonBody.Length > 0) {
             request.Content = new StringContent(jsonBody, Encoding.UTF8, "application/json");
@@ -616,19 +596,16 @@ public class F : Form {
           using var response = await client.SendAsync(request, HttpCompletionOption.ResponseContentRead);
           if(response.IsSuccessStatusCode) {
             return await response.Content.ReadAsStringAsync();
-          } else if(attempt == 1) {
-            await Task.Delay(5000);
-            continue;
           }
-        } catch {
-          if (attempt == 1) await Task.Delay(5000);
-        }
+        } catch { }
+
+        if(attempt == 1) await Task.Delay(5000);
       }
 
       int k = 0;
       char[] rentBuffer = ArrayPool<char>.Shared.Rent(128);
-      if (rentBuffer.AsSpan().TryWrite($"\tError. Request to {host} failed.", out k)) {
-         log2(rentBuffer.AsMemory(0, k));
+      if(rentBuffer.AsSpan().TryWrite($"\tError. Request to {new Uri(url).Host} failed.", out k)) {
+        log2(rentBuffer.AsMemory(0, k));
       } else {
         ArrayPool<char>.Shared.Return(rentBuffer);
       }
@@ -639,6 +616,7 @@ public class F : Form {
     async Task UpdateCfAsync() {
       if(DnsCache.Count == 0) {
         // Первое обращение
+        await Task.Delay(TimeSpan.FromMinutes(2));
         string zonesJson = await RequestAsync(HttpMethod.Get,
                           "https://api.cloudflare.com/client/v4/zones", cfToken);
         if (zonesJson.Length == 0) return;
@@ -724,11 +702,6 @@ public class F : Form {
       cache.Set(cacheKey, exists, cacheOptions);
 
       return exists;
-    }
-
-    static void cgiQuit(in int i) {
-       try{ proc[i].StandardInput.WriteLine(string.Empty); }
-       catch { }
     }
 
     public static void vfpQuit(in int i) {
@@ -970,32 +943,56 @@ public class F : Form {
       return (k1, k2);
     }
 
-    // Запуск скрипта initCGI
-    public static bool start_CGI(int i, byte b=2) {
-      // Если процесс не работает, то запустим
-      cgi[i] = new ProcessStartInfo();
-      cgi[i].FileName = Proc;
-      cgi[i].CreateNoWindow = true;
-      cgi[i].UseShellExecute = false;
-      cgi[i].RedirectStandardInput = true;
-      cgi[i].RedirectStandardOutput = true;
-      cgi[i].Arguments = Args+" \""+DocumentRoot+initCGI+Ext+"\"";
+    // Загрузка DLL
+    public static int start_DLL(string relativePath) {
+      // 1. Загружаем index.dll с диска в выгружаемый контекст
+      Assembly assembly;
+      var fileInfo= fileProvider.GetFileInfo(relativePath);
+      var alc= new AssemblyLoadContext(null, isCollectible: true);
       try {
-        proc[i] = Process.Start(cgi[i]);
-        cgib[i] = b;
-        return false;
-      } catch { }
-      return true;
-    }
-
-    // Подготовим CGI к новым заданиям
-    public static void clear_cgi(int m) {
-      if(proc[m] != null) {
-        try { proc[m].Dispose(); } catch { }
-        proc[m] = null;
+        using Stream dllStream = fileInfo.CreateReadStream();
+        assembly= alc.LoadFromStream(dllStream);
+      } catch {
+        alc.Unload();
+        return -1;
       }
-      cgib[m] = start_CGI(m)? (byte)0: (byte)1;
-      freeCGI.Push(m);
+
+      // 2. Находим существующий слот m или выделяем новый с авторасширением массива
+      int m= F.Dlls.GetOrAdd(relativePath, _ => {
+        lock (dllLock) {
+          nDlls++;
+          if(nDlls >= aDll.Length)
+             Array.Resize(ref aDll, aDll.Length * 2);
+          return nDlls;
+        }
+      });
+
+      // 3. Собираем словарь скриптов внутри этой DLL
+      var scriptsMap= new Dictionary<string, ScriptDelegate>(StringComparer.OrdinalIgnoreCase);
+      foreach (var type in assembly.GetTypes()) {
+        if(!type.IsPublic || type.IsAbstract) continue;
+        var method= type.GetMethod("EvalAsync",
+                    [typeof(Dictionary<string, string>), typeof(Stream)]);
+        if(method != null && method.ReturnType == typeof(Task<(string, byte[])>)) {
+          var instance = Activator.CreateInstance(type);
+          scriptsMap[type.Name] = method.CreateDelegate<ScriptDelegate>(instance);
+        }
+      }
+
+      // 4. Подписываемся на обновление файла (при перезаписи ячейка aDll[m] обнулится)
+      var changeToken= fileProvider.Watch(relativePath);
+      IDisposable reg= null;
+      reg= changeToken.RegisterChangeCallback(_ => {
+        reg?.Dispose();
+        var oldEntry= Interlocked.Exchange(ref aDll[m], null);
+        oldEntry?.Context.Unload();
+      }, null);
+
+      aDll[m] = new DllCacheEntry {
+        Context = alc,
+        Scripts = scriptsMap
+      };
+      return m;
     }
 
     // Запуск VFP
@@ -1245,18 +1242,6 @@ public class F : Form {
             st1= k > 0? k : 1;
           }
           break;
-        case "-n":
-          if(toArg(args)){
-            k=valInt(args[i]);
-            if(k >= 0 && k <= s9) it=k;
-          }            
-          break;
-        case "-n1":
-          if(toArg(args)){
-            k=valInt(args[i]);
-            if(k >= 0 && k <= s9) it1=k;
-          }            
-          break;
         case "-f":
           if(toArg(args)){
             k=valInt(args[i]);
@@ -1297,15 +1282,6 @@ public class F : Form {
         case "-c":
           if(toArg(args)) CerFile=args[i];
           break;
-        case "-proc":
-          if(toArg(args)) Proc=args[i];
-          break;
-        case "-args":
-          if(toArg(args)) Args=args[i];
-          break;
-        case "-ext":
-          if(toArg(args)) Ext=args[i];
-          break;
         case "-pfx-enc":
           if(toArg(args)) pfxPw=unProtect(args[i]);
           break;
@@ -1332,6 +1308,8 @@ public class F : Form {
       // Корректировка некоторых параметров
       k= st + 1000;
       if(qu<k) qu= k;
+      k = DirectoryIndex.LastIndexOf('.');
+      DirectoryCs= k>=0? $"{DirectoryIndex.AsSpan(0,k)}.dll": $"{DirectoryIndex}.dll";
 
       if(ts.Length > 0) schtasks(ref ts);
       if(!Controls.Contains(textBox1)) {
@@ -1362,9 +1340,10 @@ USAGE:
 
 Parameters:                                                                  Values:
      -d      Folder containing the domains.                                      {DocumentRoot}
-     -i      Main document is in the folder. To compress traffic,
-             files compressed using gzip method of the name.expansion.gz type
-             are supported, for example - index.html.gz or library.js.gz etc.
+     -i      Main document in the folder. Its base name (before the dot) is     {DirectoryIndex}
+             also used for the C# script assembly (.dll, e.g. index.dll).
+             Pre-compressed static files of the name.extension.gz type are
+             also supported, for example - index.html.gz or library.js.gz etc.
      -c      Name of the file containing the PFX certificate for the TLS 1.3     {CerFile}
              protocol. If the path is not specified, the certificate is 
              searched for in the folder where the https.net server is located
@@ -1388,10 +1367,6 @@ Parameters:                                                                  Val
      -s1     Allowed number of simultaneously processed requests per IP.         {st1}
      -w      Allowed time to reserve an open channel for request that did not    {tw/1000}
              started. From 1 to {t9} seconds.
-     -n      Maximum number of dynamically running interpreters. Processes       {it}
-             are launched as needed depending on the number of concurrent
-             requests. Maximum value is {s9}.
-     -n1     The initial number of interpreters to pre-start.                    {it1}
      -f      Maximum number of dynamically launched FoxPro9.exe instances.       {db}
              FoxPro9.exe COMs are created as needed, depending on the number
              of concurrent requests. The maximum value is {s9}.
@@ -1407,12 +1382,7 @@ Parameters:                                                                  Val
              the form-... directive is missing from the request data, then
              incoming data stream will be placed entirely in a file. This
              feature can be used to transfer files to the server. In this
-             case, the file name will be in the environment variable
-             POST_FILENAME.
-     -proc   Script handler used. If necessary, you must also include            {Proc}
-             the full path to the executable file.
-     -args   Additional parameters of the handler startup command line.
-     -ext    Extension of the script files.                                      {Ext}
+             case, the file name is passed in POST_FILENAME.
 """;
       return l;
     }

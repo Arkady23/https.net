@@ -1,7 +1,7 @@
 //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 //!!                                                         !!
 //!!    https.net сервер на C#.      Автор: A.Б.Корниенко    !!
-//!!    class Session                версия от 01.10.2026    !!
+//!!    class Session                версия от 26.11.2026    !!
 //!!                                                         !!
 //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
@@ -49,10 +49,12 @@ namespace https2 {
     static ReadOnlySpan<byte> Gzip => "Content-Encoding: gzip\r\n"u8;
     static ReadOnlySpan<byte> CC=> "Cache-Control: public, max-age=2300000\r\n"u8;
     int i, j, k, m, i1, k1, i7, Content_T, eof, nbuf, parsedPosition, headersCount, headersLen,
-         totalBytesRead, firstLine, nres, ifilename, ifilename2, nfilename, ndirname,
+         totalBytesRead, firstLine, nres, ncs, ifilename, ifilename2, nfilename, ndirname,
          iQUERY_STRING, nQUERY_STRING, iCharset, nCharset;
     bool l, l1, needHost, needContentType, needContentDisposition, needLastLine,
          isCC, isCT, isDate, isGzip, isHttps;
+    Dictionary<string, string> env= new Dictionary<string, string>(16,
+                                        StringComparer.OrdinalIgnoreCase);
     CancellationTokenSource readCts = new();
     CancellationTokenSource handCts = new();
     CancellationTokenSource exeCts = new();
@@ -61,14 +63,15 @@ namespace https2 {
     char[] dirname = new char[256];
     byte[] buf = new byte[F.bu];
     char[] res = new char[256];
+    char[] cs = new char[64];
     const byte b10 = 10;
     SslStream sslStream;
     FileStream file1;           // Файл для записи POST-данных
     IPEndPoint point;           // IP адрес клиента
-    Encoding stdEnc;            // Кодировка в stdInput
-    Stream stdInput;            // Для ссылки на запись в StandardInput (CGI)
+    Stream stdInput;            // Для ссылки на запись в StandardInput (cs)
     Stream stream;              // Объявляем объект как базовый Stream
-    Task<bool> ts;              // Задача запуска обработчика
+    Task<bool> ts;              // Задача запуска обработчика VFP
+    Task<int> nTs;              // Задача запуска обработчика C#
     IPAddress IP;
     Encoding UTF;
     DateTime dt1;
@@ -91,13 +94,14 @@ namespace https2 {
         if (dirInfo.Exists) dirInfo.Delete(true);
         ndirname = 0;
       }
-      nres = nQUERY_STRING = firstLine = 0;
-      isCT = isDate = isGzip = false;
+      nres=ncs=nQUERY_STRING=firstLine= 0;
+      isCT=isDate=isGzip= false;
       F.DecrIP(IP);                         // Разпешить еще один запрос
-      file1 = null;                         // Освободить объекты
-      isCC = true;                          // Кеширование надо
-      ts = null;                            // Задача запуска оброботчика
-      R = 0;                                // Однобайтовые флажки
+      file1= null;                          // Освободить объекты
+      isCC= true;                           // Кеширование надо
+      env.Clear();                          // Убераем все заголоки
+      ts= null;                             // Задача запуска оброботчика
+      R= 0;                                 // Однобайтовые флажки
 
       InitStream();
     }
@@ -174,7 +178,7 @@ namespace https2 {
                 } catch { }
               }
               if(R==2) {
-                await send_cgi().ConfigureAwait(false);
+                await send_cs().ConfigureAwait(false);
               } else {
                 await send_prg().ConfigureAwait(false);
               }
@@ -232,8 +236,6 @@ namespace https2 {
         if(R > 1) {
           if(R > 2) {
             F.clear_prg(m);
-          } else {
-            F.clear_cgi(m);
           }
         }
 
@@ -381,19 +383,7 @@ namespace https2 {
              l = false;            // Дальше читать бессмысленно
              break;
            case 2:
-             m = -1;
-             if(F.cgia && F.freeCGI.TryPop(out m)) {
-                if(F.cgib[m]==0) {
-                   l1=true;
-                } else {
-                  try {
-                    l1 = F.proc[m] == null || F.proc[m].HasExited;
-                  } catch(Exception) {
-                    l1 = true;
-                  }
-                }
-                if(l1) ts = Task.Run(() => F.start_CGI(m));
-             }
+             CheckFile(loadDll: true);
              break;
            case 3:
              m = -1;
@@ -465,21 +455,15 @@ namespace https2 {
           extSpan = Path.GetExtension(res.AsSpan(0, nres));
           if(extSpan.Length > 0) {
             extSpan = extSpan[1..];   // Убрать первую точку
+            if (extSpan.Equals("cs", StringComparison.OrdinalIgnoreCase) && TryFindDll(3)) {
+              extSpan = "dll";
+            }
           } else {
-            if(CheckFile(".", F.Ext)) {
-              extSpan = F.Ext;
-              i= F.Ext.Length + 1;
-              if(nres+i <= res.Length) {
-                res[nres] = '.';
-                F.Ext.CopyTo(res.AsSpan(nres+1));
-                nres += i;
-              }
+            if(TryFindDll(0)) {
+              extSpan = "dll";
             } else if(CheckFile(".prg")) {
               extSpan = "prg";
-              if(nres + 4 <= res.Length) {
-                ".prg".CopyTo(res.AsSpan(nres));
-                nres += 4;
-              }
+              nres += 4;
             } else if (CheckFile(dir16: 1)) {
               i= F.DirectoryIndex.Length + 1;
               if(nres+i <= res.Length) {
@@ -536,7 +520,7 @@ namespace https2 {
           break;
         default:
           isCC = false;
-          if(extSpan.SequenceEqual(F.Ext)) {
+          if(extSpan.SequenceEqual("dll")) {
             R = 2;
           } else if(extSpan.SequenceEqual("prg")) {
             R = 3;
@@ -548,6 +532,21 @@ namespace https2 {
       }
     }
 
+    bool TryFindDll(int extLen) {
+      i= res.AsSpan(0, nres).LastIndexOf('/') + 1;
+      ncs= nres - i - extLen;
+      if(ncs > 0 && ncs <= cs.Length) {
+        res.AsSpan(i,ncs).CopyTo(cs);
+        nres= i;
+        if(CheckFile(F.DirectoryCs)) {
+          nres+= F.DirectoryCs.Length;
+          return true;
+        }
+        nres += ncs + extLen; // Возвращаем исходную длину при неудаче
+      }
+      return false;
+    }
+
     // Ищет маркер с начала байтовой строки и возвращает начальную часть
     static ReadOnlySpan<byte> Before1(ReadOnlySpan<byte> x, byte marker) {
       int k = x.IndexOf(marker);
@@ -556,38 +555,36 @@ namespace https2 {
     }
 
     // Проверка существования файла без аллокаций строк
-    bool CheckFile(ReadOnlySpan<char> Part2 = default,
-                   ReadOnlySpan<char> Part3 = default, int dir16 = 0) {
-      int total = nres + Part2.Length + Part3.Length;
+    bool CheckFile(ReadOnlySpan<char> Part2= default, int dir16= 0, bool loadDll= false) {
+      int total= nres + Part2.Length;
 
       if(total > res.Length) return false;
+      if(Part2.Length > 0) Part2.CopyTo(res.AsSpan(nres));
 
-      int current = nres;
-
-      if(Part2.Length > 0) {
-        Part2.CopyTo(res.AsSpan(current));
-        current += Part2.Length;
-      }
-
-      if(Part3.Length > 0) {
-        Part3.CopyTo(res.AsSpan(current));
-      }
-
-      current = F.DocumentRoot.Length;
-      if(total <= current) return false;
+      int i= F.DocumentRoot.Length;
+      if(total <= i) return false;
 
       // Проодготовим строку для быстрой проверки наличия файла
-      ReadOnlySpan<char> relativeRes = res.AsSpan(current, total-current);
+      ReadOnlySpan<char> relativeRes = res.AsSpan(i, total-i);
       Span<char> tempPath = stackalloc char[relativeRes.Length];
       relativeRes.CopyTo(tempPath);
-      for (int i = 0; i < tempPath.Length; i++) {
+      for (i= 0; i < tempPath.Length; i++) {
         if(tempPath[i] == '/') tempPath[i] = '\\';
       }
       string finalPathToCheck = tempPath.ToString();
 
       // Вызываем метод быстрой проверки наличия файла
       // dir16 == 0 -> ищем файл, любое другое -> ищем папку
-      return F.FileExists(finalPathToCheck, dir16 != 0);
+      if(!F.FileExists(finalPathToCheck, dir16 != 0)) return false;
+
+      if(loadDll) {
+        // Сработает ТОЛЬКО при первом запуске или сразу
+        // после обновления index.dll на диске!
+        if(!F.Dlls.TryGetValue(finalPathToCheck, out m) || F.aDll[m] == null)
+           nTs = Task.Run(() => F.start_DLL(finalPathToCheck));
+      }
+
+      return true;
     }
 
     // Полный путь ресурса
@@ -920,8 +917,7 @@ namespace https2 {
 
           // Если в потоке файл
           if(R==2) {
-            await cgi_start(filename).ConfigureAwait(false);  // Записываем заголовки
-
+            cs_start(filename);         // Записываем заголовки
           } else {
             prg_start(filename);        // Записываем заголовки
           }
@@ -933,107 +929,49 @@ namespace https2 {
 
         // и если просто поток
         if(R==2) {
-          await cgi_start(filename).ConfigureAwait(false);  // Записываем заголовки
-          if(Actual_Length > 0) {                           // Записываем хвост
+          cs_start(filename);                           // Записываем заголовки
+          if(Actual_Length > 0) {                       // Записываем хвост
               await stdInput.WriteAsync(System.MemoryExtensions.AsMemory(
                     buf, parsedPosition, (int)Actual_Length)).ConfigureAwait(false);
           }
         } else {
-
-          // Записываем заголовки
-          prg_start(filename);
-
-          // Записываем хвост
-          if(Actual_Length > 0) {
+          prg_start(filename);                          // Записываем заголовки
+          if(Actual_Length > 0) {                       // Записываем хвост
             F.vfp[m].SetVar("STD_INPUT",buf.AsSpan(parsedPosition,
                             (int)Actual_Length).ToArray());
           }
-
         }
         await send_stream(R).ConfigureAwait(false);     // Записываем POST
       }
     }
 
     // Передаем блок заголовков
-    async Task cgi_start(string filename){
-      string fullPath = fullres(res.AsSpan(0, nres));
-      Span<char> lengthBuffer = stackalloc char[15];     // Максимум для IPv4
-      IP.TryFormat(lengthBuffer, out i);
+    void cs_start(string filename){
+      env["REMOTE_ADDR"]     = IP.ToString();
+      env["SERVER_PROTOCOL"] = isHttps ? "https" : "http";
+      env["SCRIPT_FILENAME"] = fullres(res.AsSpan(0, nres));
+      env["QUERY_STRING"]    = F.UTF8.GetString(buf, iQUERY_STRING, nQUERY_STRING);
+      env["POST_FILENAME"]   = nfilename > 0 ? $"{F.Folder}{filename}" : string.Empty;
 
-      // --- ЧАСТЬ 1: ПОДСЧЕТ ДЛИНЫ ---
-      i1 = headersLen + nQUERY_STRING + i + 75 +
-           stdEnc.GetByteCount(fullPath)*2 + (isHttps? 5 : 4);
-      if(nfilename > 0) i1 += nfilename + stdEnc.GetByteCount(F.Folder);
+      // Разбор сырых HTTP-заголовков
+      ReadOnlySpan<byte> raw= buf.AsSpan(firstLine, headersLen);
+      ReadOnlySpan<byte> line;
+      while (!raw.IsEmpty) {
+        i= raw.IndexOf(b10);
+        line= i>=0 ? raw[..i] : raw;
+        raw = i>=0 ? raw[(i+1)..] : default;
 
-      byte[] tmpArray = ArrayPool<byte>.Shared.Rent(4096);
-      try {
-
-        // СОЗДАЕМ ФАЙЛ ДЛЯ ОТЛАДКИ (Для работы сервера замените на stdInput.BaseStream)
-        //using var outputTarget = File.Create("cgi_dump.bin"); 
-        //var outputTarget = stdInput.BaseStream;
-
-        // --- ЧАСТЬ 2: ОТПРАВКА ДЛИНЫ ПАКЕТА ---
-        // Пишем число i1 в начало tmpArray.
-        if (Utf8Formatter.TryFormat(i1, tmpArray.AsSpan(0), out k)) {
-            tmpArray[k] = 10;  // Добавляем '\n' после числа
-            k++;
+        i= line.IndexOf((byte)':');
+        if(i>0) {
+          env[Encoding.ASCII.GetString(line[..i].Trim(TrailingGarbage1))] =
+              F.UTF8.GetString(line[(i + 1)..].Trim(TrailingGarbage3));
         }
-
-        // --- ЧАСТЬ 3: ОТПРАВКА RES ---
-        WriteStringToTmp(fullPath);
-        tmpArray[k] = 10;      // Добавляем '\n' после res
-        k++;
-        await stdInput.WriteAsync(tmpArray.AsMemory(0,k)).ConfigureAwait(false);
-//File.WriteAllBytes("dump.txt", tmpArray.AsSpan(0, k).ToArray());
-
-
-        // --- ЧАСТЬ 4: ЗАГОЛОВКИ ---
-        await stdInput.WriteAsync(buf.AsMemory(firstLine, headersLen)).ConfigureAwait(false);
-//File.AppendAllBytes("dump.txt", buf.AsMemory(firstLine, headersLen).ToArray());
-
-        // --- ЧАСТЬ 5: СТАТИЧЕСКИЕ ЗАГОЛОВКИ (ПИШЕМ БЕЗ ОШИБОК И БЕЗ ВЫДЕЛЕНИЯ ПАМЯТИ) ---
-        // Используем tmpArray с самого начала (offset = 0)
-        k = 0;
-        WriteToTmp("SCRIPT_FILENAME:"u8);
-        WriteStringToTmp(fullPath);
-        WriteToTmp(isHttps ? "\nSERVER_PROTOCOL:https"u8
-                           : "\nSERVER_PROTOCOL:http"u8);
-        WriteToTmp("\nPOST_FILENAME:"u8);
-        if(nfilename > 0) {
-          WriteStringToTmp(F.Folder);
-          WriteStringToTmp(filename);
-        }
-        WriteToTmp("\nQUERY_STRING:"u8);
-        buf.AsSpan(iQUERY_STRING, nQUERY_STRING).CopyTo(tmpArray.AsSpan(k)); 
-        k += nQUERY_STRING;
-        WriteToTmp("\nREMOTE_ADDR:"u8);
-        if(IP.TryFormat(tmpArray.AsSpan(k), out i)) k += i;
-      } finally {
-        // Обязательно возвращаем массив в пул
-        ArrayPool<byte>.Shared.Return(tmpArray);
-      }
-      await stdInput.WriteAsync(tmpArray.AsMemory(0, k)).ConfigureAwait(false);
-//File.AppendAllBytes("dump.txt", tmpArray.AsMemory(0, k).ToArray());
-
-      //await stdInput.FlushAsync().ConfigureAwait(false);
-
-      // Полезный макрос/лямбда для лаконичности (не делает аллокаций в куче)
-      void WriteToTmp(ReadOnlySpan<byte> source) {
-        source.CopyTo(tmpArray.AsSpan(k)); k += source.Length;
-      }
-      void WriteStringToTmp(string SystemString) {
-        k += stdEnc.GetBytes(SystemString.AsSpan(), tmpArray.AsSpan(k));
       }
     }
 
     void prg_start(string filename) {
       var VFP = F.vfp[m];
-      Span<byte> tempBytes = stackalloc byte[15];
-      if(IP.TryFormat(tempBytes, out i)) {
-        byte[] VFPbytes = new byte[i];
-        tempBytes.Slice(0,i).CopyTo(VFPbytes);
-        VFP.SetVar("REMOTE_ADDR", VFPbytes);
-      }
+      VFP.SetVar("REMOTE_ADDR", IP.ToString());
       VFP.SetVar("SERVER_PROTOCOL", (isHttps? "https": "http"));
       VFP.SetVar("SCRIPT_FILENAME",fullres(res.AsSpan(0, nres)));
       VFP.SetVar("HTTP_HEADERS",buf.AsSpan(firstLine, headersLen).ToArray());
@@ -1061,8 +999,7 @@ namespace https2 {
             Actual_Length += i;
             switch(b) {
             case 2:
-              await F.proc[m].StandardInput.BaseStream.WriteAsync(
-                          buf.AsMemory(0,i)).ConfigureAwait(false);
+              await stdInput.WriteAsync(buf.AsMemory(0, i)).ConfigureAwait(false);
               break;
             case 3:
               F.vfp[m].STD_INPUTADD(buf.AsSpan(0,i).ToArray());
@@ -1094,7 +1031,7 @@ namespace https2 {
         await using var fs = OpenFileReadAsync(path);
         await fs.CopyToAsync(stream).ConfigureAwait(false);
       } catch {
-        if(R > 2) { set_errVFP(); } else { set_errPython(); }
+        if(R > 2) { set_errVFP(); } else { set_errCS(); }
         SetToBuf("File "u8);
         SetToBuf(buf.AsSpan(ifilename, nfilename));
         await send_txtAsync(" not found."u8).ConfigureAwait(false);
@@ -1111,121 +1048,96 @@ namespace https2 {
            });
     }
 
-    void set_errPython() {
+    void set_err() {
       k= 0;
-      SetToBuf(CRLF);
-      SetToBuf(CRLF);
-      SetToBuf("Error in Python: "u8);
-    }
-    void set_errVFP() {
-      k= 0;
-      SetToBuf(OK);
+      SetToBuf(H1);
+      SetToBuf("500 Internal Server Error"u8);
       SetHead();
       SetToBuf(GetCT(-1));
       SetToBuf(CRLF);
+    }
+    void set_errCS() {
+      set_err();
+      SetToBuf("Error in C#: "u8);
+    }
+    void set_errVFP() {
+      set_err();
       SetToBuf("Error in FoxPro: "u8);
     }
 
-    async Task send_cgi() {
-      if(m < 0) {
-
-        // Вывести сообщение об отсутствии интерпретатора
-        k= 0;
-        SetToBuf("There is no \""u8);
-        SetToBuf(F.Proc);
-        await send_txtAsync("\" on the server :("u8).ConfigureAwait(false);
+    // ОБРАБОТКА СКРИПТА .CS
+    async Task send_cs() {
+      if(nTs != null) m = await nTs.ConfigureAwait(false);
+      if(m<0 || F.aDll[m] == null) {
+        set_errCS();
+        await send_txtAsync("Script loading error."u8).ConfigureAwait(false);
         return;
       }
 
-      try{
-        if(ts != null && await ts.ConfigureAwait(false)) m = F.db;
-      } catch(Exception) {
-        m = F.db;
-      }
-      if(m >= F.db) {
-
-        // Вывести сообщение, что все доступные процессы интерпретатора заняты
-        k= 0;
-        SetToBuf("All "u8);
-        SetToBuf(F.db);
-        SetToBuf(" \""u8);
-        SetToBuf(F.Proc);
-        await send_txtAsync("\" processes are busy :("u8).ConfigureAwait(false);
+      // 1. Ищем скрипт в словаре DLL по срезу cs[..ncs] без аллокаций
+      var lookup = F.aDll[m].Scripts.GetAlternateLookup<ReadOnlySpan<char>>();
+      if(!lookup.TryGetValue(cs.AsSpan(0, ncs), out var runScript)) {
+        await failure("404 Not Found"u8).ConfigureAwait(false);
+        LogMethod();
         return;
       }
 
-      stdInput = F.proc[m].StandardInput.BaseStream;
-      stdEnc = F.proc[m].StandardInput.Encoding;
-      await POSTAsync().ConfigureAwait(false);  // Чтение данных POST
-      stdInput.Close();
-      if(eof > 0) {       // Если нет разрыва связи
-        if(exeCts == null || !exeCts.TryReset()) {
-          exeCts?.Dispose();
-          exeCts = new CancellationTokenSource();
-        }
-        exeCts.CancelAfter(F.i8);
-        using var registration = exeCts.Token.Register(() => {
-          try {
-            if(F.proc[m] != null && !F.proc[m].HasExited) F.proc[m].Kill();
-          } catch { }
-        });
+      // 2. Настраиваем таймаут выполнения
+      if (exeCts == null || !exeCts.TryReset()) {
+        exeCts?.Dispose();
+        exeCts = new CancellationTokenSource();
+      }
+      exeCts.CancelAfter(F.i8);
 
-        // Вывод полученных данных cgi-скрипта
-        k = 0;              // Длина подготовленного заголовка
-        l1 = false;         // Пока filename не найден
-        try {
+      // 3. Создаём трубу и запускаем скрипт параллельно с чтением POST-данных
+      var pipe = new System.IO.Pipelines.Pipe();
+      stdInput = pipe.Writer.AsStream();
 
-          // Прочитать ответ во вторую половину buf
-          i1 = await F.proc[m].StandardOutput.BaseStream.ReadAsync(buf.AsMemory(F.bu2, F.bu2),
-                     exeCts.Token);
+      var scriptTask = runScript(env, pipe.Reader.AsStream()).WaitAsync(exeCts.Token);
 
-          // Проверить код возврата
-          if(i1>5) {
-            i=F.valInt(buf.AsSpan(F.bu2, 4));
-            if(i>=100 && i<=599) {
-              nres = buf.AsSpan(F.bu2, i1).IndexOf(b10);
-              if(nres > 0) {
-                // Обнаружена строка статуса возврата длиной nres
-                i = buf.AsSpan(F.bu2, nres).IndexOf((byte)';');
-                if(i == -1) {
-                  i = nres+1;
-                  k = k1 = F.bu2 - H1.Length - HeadCount();
-                } else {
-                  // Обнаружен дополнительный параметр (filename)
-                  l1 = true;
-                  nres -= i;
-                  ExtractFilename(buf.AsSpan(F.bu2+i, nres));
-                  k = k1 = F.bu2 - H1.Length - HeadCount() + nres - 1;
-                }
-                Span<byte> statusBytes = stackalloc byte[i];
-                buf.AsSpan(F.bu2, i).CopyTo(statusBytes);
-                SetToBuf(H1);
-                SetToBuf(statusBytes);
-                if(l1) SetToBuf(CRLF);
-              }
-            }
+      try {
+        await POSTAsync().ConfigureAwait(false);              // Чтение данных POST в трубу
+        await stdInput.DisposeAsync().ConfigureAwait(false);  // Закрываем вход трубы (EOF для скрипта)
+
+        if(eof > 0) {
+          var (ret,body) = await scriptTask.ConfigureAwait(false);
+
+          k = 0;              // Длина подготовленного заголовка
+          l1 = false;         // Пока filename не найден
+          await SetStatusAsync(ret).ConfigureAwait(false);
+
+          if(body != null && body.Length > 0) {
+            await stream.WriteAsync(body).ConfigureAwait(false);
           }
-          if(k==0) {
-            k = k1 = F.bu2 - OK.Length - HeadCount();         // Начало ответа
-            SetToBuf(OK);
+          if(l1) {
+            await FileToStreamAsync(ExtractFilenameAsString(ret.AsSpan())).ConfigureAwait(false);
           }
-          SetHead();
-          await stream.WriteAsync(buf.AsMemory(k1, F.bu2+i1-k1)).ConfigureAwait(false);
-          if(!F.proc[m].HasExited) await F.proc[m].StandardOutput.BaseStream
-                                  .CopyToAsync(stream).ConfigureAwait(false);
-          if(l1) await FileToStreamAsync(F.UTF8.GetString(buf, ifilename,
-                                         nfilename)).ConfigureAwait(false);
-          //await stream.FlushAsync().ConfigureAwait(false);
-        } catch (OperationCanceledException) {
-          set_errPython();
-          SetToBuf("The maximum calculation duration of "u8);
-          SetToBuf(F.i8);
-          await send_txtAsync(" ms has been exceeded."u8).ConfigureAwait(false);
-        } catch (Exception e) {
-          set_errPython();
-          SetToBuf(e.Message);
-          await stream.WriteAsync(buf.AsMemory(0, k)).ConfigureAwait(false);
+        } else {
+          // Если клиент разорвал соединение во время POST — отменяем скрипт
+          exeCts.Cancel();
         }
+      } catch (OperationCanceledException) {
+        set_errCS();
+        SetToBuf("The maximum calculation duration of "u8);
+        SetToBuf(F.i8);
+        await send_txtAsync(" ms has been exceeded."u8).ConfigureAwait(false);
+      } catch (Exception e) {
+        set_errCS();
+        SetToBuf(e.Message);
+        await stream.WriteAsync(buf.AsMemory(0, k)).ConfigureAwait(false);
+      } finally {
+        await stdInput.DisposeAsync().ConfigureAwait(false);
+        await pipe.Reader.CompleteAsync().ConfigureAwait(false);
+        LogMethod();
+      }
+    }
+
+    // Дописать в журнал метод
+    void LogMethod() {
+      if(ncs>0 && nres+ncs < res.Length) {
+        res[nres]= ':';
+        cs.AsSpan(0,ncs).CopyTo(res.AsSpan(nres+1));
+        nres+= ncs+1;
       }
     }
 
@@ -1266,27 +1178,7 @@ namespace https2 {
       string ret = string.Empty;
       try{
         ret = await Task.Run(() => F.vfp[m].Eval()).WaitAsync(exeCts.Token) as string;
-        if(ret != null && ret.Length > 5) {
-          i = F.valInt(ret, 4);
-          if(i>=100 && i<=599) {
-            // Обнаружена строка статуса возврата длиной nres
-            i = ret.IndexOf(';');
-            if(i != -1) {
-              // Обнаружен дополнительный параметр (filename)
-              l1 = true;
-            }
-            SetToBuf(H1);
-            SetToBuf(ret);
-            SetToBuf(CRLF);
-          }
-        }
-        if(k == 0) {
-          SetToBuf(OK);
-          SetHead();
-        }
-
-        // Отправляем заголовки
-        await stream.WriteAsync(buf.AsMemory(0, k)).ConfigureAwait(false);
+        await SetStatusAsync(ret).ConfigureAwait(false);
 
         // Получаем и отправляем в stream массив из FoxPro
         if(F.vfp[m].STD_OUTBIN() is System.Array comArray) {
@@ -1327,6 +1219,32 @@ namespace https2 {
         SetToBuf(e.Message);
         await stream.WriteAsync(buf.AsMemory(0, k)).ConfigureAwait(false);
       }
+    }
+
+    ValueTask SetStatusAsync(string ret) {
+      if(ret != null && ret.Length > 5) {
+        i= F.valInt(ret, 4);
+        if(i >= 100 && i <= 599) {
+          k1= ret.IndexOf(';');
+          ReadOnlySpan<char> statusSpan;
+          if(k1 != -1) {
+            l1= true;
+            statusSpan= ret.AsSpan(0,k1).TrimEnd();
+          } else {
+            statusSpan= ret.AsSpan().TrimEnd();
+          }
+          SetToBuf(H1);
+          SetToBuf(statusSpan);
+          SetToBuf(CRLF);
+        }
+      }
+      if(k == 0) {
+        SetToBuf(OK);
+        SetHead();
+      }
+
+      // Отправляем заголовки
+      return stream.WriteAsync(buf.AsMemory(0,k));
     }
   }
 }
