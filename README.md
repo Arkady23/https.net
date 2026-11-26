@@ -7,7 +7,7 @@ The root folder for domains (www by default) should contain folders correspondin
 
 The number of threads should not be set to the maximum possible. The default is 500. Watch the log, the last numeric field in each entry shows the number of the running thread. Over time, you will understand how many simultaneous threads you have in use. This value is probably significantly less than 500.  
 
-For maximum performance, instead of spawning external interpreters, the https.net server uses compiled C# assemblies (index.dll) that are loaded directly into server memory and automatically hot-reloaded whenever the file is updated on disk. The source code of the sample index.cs assembly (with built-in standalone console debugging) is provided in the www folder of the repository. This does not apply to .prg scripts, which use a pool of foxpro9.Shell COM servers as their background handler.  
+For maximum performance, instead of spawning external interpreters, the https.net server uses compiled C# assemblies (index.dll) that are loaded directly into server memory and automatically hot-reloaded whenever the file is updated on disk. The source code of the sample index.cs assembly (with built-in standalone console debugging) is provided in the NET10 folder of the repository. This does not apply to .prg scripts, which use a pool of foxpro9.Shell COM servers as their background handler.  
 
 By default, the https.net server executes dynamic scripts written in C# (via .dll assemblies invoked by URL with the .cs extension or without an extension) and Visual FoxPro (.prg). The base name of the assembly container is configured server-wide via the -i parameter (defaulting to index.html / index.dll), defining a unified entry point across all folders and domains.  
 
@@ -80,7 +80,7 @@ Parameters:                                                                  Val
 
 Число потоков не следут задавать максимально возможным. По умолчанию — 500. Наблюдайте за журналом, в последнем числовом поле в каждой записи отображен номер работающего потока. Со временем вы поймете какое число одновременных потоков у вас используется. Вероятно это значение значительно меньше 500.  
 
-Для максимальной производительности сервер https.net вместо запуска внешних интерпретаторов использует скомпилированные C#-сборки (index.dll), которые загружаются непосредственно в память сервера и автоматически перезагружаются «на лету» при обновлении файла на диске. Исходный код тестовой сборки index.cs (с поддержкой автономной отладки в консоли) приведён в репозитории в папке www. Это не относится к скриптам .prg, для которых в качестве фонового обработчика используется пул COM-серверов foxpro9.Shell.   
+Для максимальной производительности сервер https.net вместо запуска внешних интерпретаторов использует скомпилированные C#-сборки (index.dll), которые загружаются непосредственно в память сервера и автоматически перезагружаются «на лету» при обновлении файла на диске. Исходный код тестовой сборки index.cs (с поддержкой автономной отладки в консоли) приведён в репозитории в папке NET10. Это не относится к скриптам .prg, для которых в качестве фонового обработчика используется пул COM-серверов foxpro9.Shell.   
 
 По умолчанию сервер https.net обрабатывает динамические скрипты на C# (через сборки .dll, вызываемые по URL с расширением .cs или без расширения) и на Visual FoxPro (.prg). При этом имя основного файла-контейнера сборки задаётся на уровне сервера параметром -i (по умолчанию index.html / index.dll), определяя единую точку входа для всех папок и доменов.  
 
