@@ -1,15 +1,15 @@
 # https.net
-Multithreaded https.net server with Visual Foxpro on COM and with Python on fast CGI by default, with protection from DoS-attacks.  
+High-performance multithreaded https.net server on .NET 10 with hot-reloadable C# scripts (in-memory DLL), Visual FoxPro over COM, and built-in DoS protection.  
 
-Многопоточный https.net сервер с Visual Foxpro на COM и с Python на быстром CGI по умолчанию, с защитой от DoS-атак.
+Высокопроизводительный многопоточный https.net сервер на .NET 10 с поддержкой C#-скриптов на лету (in-memory DLL), Visual FoxPro на COM и встроенной защитой от DoS-атак.
 ### General information
 The root folder for domains (www by default) should contain folders corresponding to the domain name and subdomain of the requested resource. If the request is http://a.kornienko.ru:8880 or https://a.kornienko.ru:8443, the root folder for domains should contain a folder named a., for example: D:/work/www/a.. If you need this same folder to open at a different address, you should create a symbolic link to this folder so that one folder is accessible from two different paths. To do this, use the Windows mklink command with the /d switch.  
 
 The number of threads should not be set to the maximum possible. The default is 500. Watch the log, the last numeric field in each entry shows the number of the running thread. Over time, you will understand how many simultaneous threads you have in use. This value is probably significantly less than 500.  
 
-The https.net server only supports fast CGI, using a simple script based on quickstart technology. A Python example of this script, initcgi.py, is provided in the repository's www folder. The server "softly" launches the initCGI script not when a client request arrives, but after sending the next response. This initial script can be implemented in most modern interpreted languages. This does not apply to prg scripts, for which the foxpro9.Shell COM server performs the initCGI role.  
+For maximum performance, instead of spawning external interpreters, the https.net server uses compiled C# assemblies (index.dll) that are loaded directly into server memory and automatically hot-reloaded whenever the file is updated on disk. The source code of the sample index.cs assembly (with built-in standalone console debugging) is provided in the www folder of the repository. This does not apply to .prg scripts, which use a pool of foxpro9.Shell COM servers as their background handler.  
 
-By default, the https.net server will process Visual FoxPro and Python scripts. However, in the server settings, you can change the script extension and handler to any other you prefer—the popular PHP or "dotnet fsi," which runs F# scripts with the .fsx extension.  
+By default, the https.net server executes dynamic scripts written in C# (via .dll assemblies invoked by URL with the .cs extension or without an extension) and Visual FoxPro (.prg). The base name of the assembly container is configured server-wide via the -i parameter (defaulting to index.html / index.dll), defining a unified entry point across all folders and domains.  
 
 The "-c filename.pfx" parameter specifies the name of the file containing your site's certificate. You can obtain such a file for free, for example, using the wacs.exe console program from the official website win-acme.com. To obtain a certificate for a second-level domain and all its third-level subdomains, you must specify two hosts in the wacs.exe responses, for example,  and *.. In this case, you will need to confirm twice (for each host separately) that you are the owner/administrator of these hosts using DNS-1. If confirmation is successful, you will receive a single certificate file for both hosts with encryption keys. The https.net server monitors the certificate file for changes. If the certificate changes, https.net will automatically update it without interrupting service.  
 
@@ -18,30 +18,31 @@ The https.net server can update dynamic IPv6 in Cloudflare's AAAA DNS records. T
 Prg scripts are processed using COM technology and the included FoxPro9.exe repeater (32-bit), not CGI. COM objects are created as client requests are processed. If a Prg error occurs, a description of the error is returned to the script in the ERROR_MESS variable. Below are examples of a test py file, a Prg file, and the output from the test. Also included is the output from a similar Prg file, but with an error (the last line break ";" is missing). There is no need to worry about memory leaks in the FoxPro9.exe process; in case of significant leaks, the https.net server will soft-restart FoxPro9.exe.
 ```PowerShell
 PS D:\> D:\work\httpd\https.net.exe /?
-Multithreaded http.net server version 2.5.1, (C) a. October 2026.
+Multithreaded https.net server version 2.6.0, (C) a.kornienko.ru November 2026.
 
 USAGE:
     https.net [Parameter1 Value1] [Parameter2 Value2] ...
-    https.net /regserver               Starting the server when the computer is turned on.
-    https.net /unregserver             Deleting the server startup task.
+    https.net /regserver              Starting the server when the computer is turned on.
+    https.net /unregserver            Deleting the server startup task.
 
     If necessary, Parameter and Value pairs are specified. If the value is text and contains
     spaces, then it must be enclosed in quotation marks. You can also specify the parameters
-    string in the http.net.xml file in the <Arguments></Arguments> section.
+    string in the "https.net.xml" file in the <Arguments></Arguments> section.
 
 Parameters:                                                                  Values:
      -d      Folder containing the domains.                                      ../www/
-     -i      Main document is in the folder. To compress traffic,
-             files compressed using gzip method of the name.expansion.gz type
-             are supported, for example - index.html.gz or library.js.gz etc.
-     -c      Name of the file containing the PFX certificate for the TLS 1.3     .pfx
+     -i      Main document in the folder. Its base name (before the dot) is     index.html
+             also used for the C# script assembly (.dll, e.g. index.dll).
+             Pre-compressed static files of the name.extension.gz type are
+             also supported, for example - index.html.gz or library.js.gz etc.
+     -c      Name of the file containing the PFX certificate for the TLS 1.3     kornienko.ru.pfx
              protocol. If the path is not specified, the certificate is 
              searched for in the folder where the https.net server is located
              and in the root folder containing the domains.
-     -pfx-enc
+     -pfx-enc                                                                    
              Encrypted password for the PFX certificate (specified in -c).
              The string must be pre-encrypted using the protect.net.exe.
-     -cloudflare-enc                                                             *****
+     -cloudflare-enc                                                             
              Encrypted Cloudflare API token for automatic deployment of AAAA
              DNS records. The string must be pre-encrypted using the
              protect.net.exe.
@@ -57,16 +58,12 @@ Parameters:                                                                  Val
      -s1     Allowed number of simultaneously processed requests per IP.         16
      -w      Allowed time to reserve an open channel for request that did not    5
              started. From 1 to 10 seconds.
-     -n      Maximum number of dynamically running interpreters. Processes       16
-             are launched as needed depending on the number of concurrent
-             requests. Maximum value is 32767.
-     -n1     The initial number of interpreters to pre-start.                    2
-     -f      Maximum number of dynamically launched FoxPro9.exe instances.       16
+     -f      Maximum number of dynamically launched FoxPro9.exe instances.       32
              FoxPro9.exe COMs are created as needed, depending on the number
              of concurrent requests. The maximum value is 32767.
      -f1     The initial number of pre-created FoxPro9.exe COMs.                 2
      -log    Size of the query log in rows. The log consists of two              10000
-             interleaved versions http.net.x.log and http.net.y.log. If the
+             interleaved versions https.net.x.log and https.net.y.log. If the
              size is set to less than 80, then the log is not kept.
      -post   Maximum size of the accepted request to transfer to the script      33554432
              file. If it is exceeded, the request is placed in a file,
@@ -76,21 +73,16 @@ Parameters:                                                                  Val
              the form-... directive is missing from the request data, then
              incoming data stream will be placed entirely in a file. This
              feature can be used to transfer files to the server. In this
-             case, the file name will be in the environment variable
-             POST_FILENAME.
-     -proc   Script handler used. If necessary, you must also include            python.exe
-             the full path to the executable file.
-     -args   Additional parameters of the handler startup command line.
-     -ext    Extension of the script files.                                      pyc
+             case, the file name is passed in POST_FILENAME.
 ```
 ### Общие сведения
 Корневая папка для доменов (по умолчанию www) должна содержать папки, соответствующие доменному имени и поддомену запрашиваемого ресурса. Если запрос выглядит как http://a.kornienko.ru:8880 или https://a.kornienko.ru:8443, то в корневой папке для доменов должна быть папка с именем a.kornienko.ru, например: D:/work/www/a.kornienko.ru. Если вам нужно, чтобы эта же папка также открывалась и по другому адресу, то вы должны на эту папку создать соответствующую символическую ссылку, чтобы одна папка была доступна по двум разным путям. Для этого воспользуйтесь командой Windows mklink с ключем /d.  
 
 Число потоков не следут задавать максимально возможным. По умолчанию — 500. Наблюдайте за журналом, в последнем числовом поле в каждой записи отображен номер работающего потока. Со временем вы поймете какое число одновременных потоков у вас используется. Вероятно это значение значительно меньше 500.  
 
-Сервер https.net поддерживает только быстрый CGI, используя простой скрипт по технологии быстрый старт. Пример для языка Python этого скрипта initcgi.py приведен в репозитории в папке www. Сервер мягко запускает initcgi-скрипт не в момент поступления запроса от клиента, а после отправки очередного ответа. Такой начальный скрипт может быть реализовон на большинстве современных интерпретируемых языках. Это не относится к скриптам prg, у которых роль initCGI выполняет COM-сервер foxpro9.Shell.  
+Для максимальной производительности сервер https.net вместо запуска внешних интерпретаторов использует скомпилированные C#-сборки (index.dll), которые загружаются непосредственно в память сервера и автоматически перезагружаются «на лету» при обновлении файла на диске. Исходный код тестовой сборки index.cs (с поддержкой автономной отладки в консоли) приведён в репозитории в папке www. Это не относится к скриптам .prg, для которых в качестве фонового обработчика используется пул COM-серверов foxpro9.Shell.   
 
-По умолчанию сервер https.net будет обрабатывать скрипты на Visual Foxpro и Python. Но в параметрах серверов вы можете заменить расширение скрипта и обработчик на любой другой, которому вы по тем или иным причинам отдаете предпочтение — на популярный php или на "dotnet fsi", выполняющий скрипты с расширением fsx, написанные на F#.  
+По умолчанию сервер https.net обрабатывает динамические скрипты на C# (через сборки .dll, вызываемые по URL с расширением .cs или без расширения) и на Visual FoxPro (.prg). При этом имя основного файла-контейнера сборки задаётся на уровне сервера параметром -i (по умолчанию index.html / index.dll), определяя единую точку входа для всех папок и доменов.  
 
 В параметре "-c имя.файла.pfx" указывается имя файла с сертификатом вашего сайта. Получить такой файл бесплатно можно, например, с помощью консольной программы wacs.exe с официального сайта win-acme.com. Для того чтобы получить сертификат на домен второго уровня и все его поддомены третих уровней, в ответах к wacs.exe нужно указать два хоста, например, kornienko.ru и *.kornienko.ru. В этом случае вам нужно будет два раза (на каждый хост отдельно) подтвердить методом DNS-1, что вы владелец/администратор этих хостов. Если подтверждение прошло успешно, то у вас появится единый файл сертификата на оба хоста с ключами шифрования. Сервер https.net следит за изменением файла сертификата. Если сертификат изменился https.net автоматически обновит его не прерывая работу.  
 
@@ -99,7 +91,7 @@ Parameters:                                                                  Val
 
 Обработка prg-скриптов происходит с использованием технологии COM и прилагаемого повторителя FoxPro9.exe (32 бит), а не CGI. COM-объекты создаются по мере выполнения запросов от клиентов. В случае ошибки в prg описание этой ошибки возвращается скрипту в переменной ERROR_MESS. Ниже приведены примеры тестового файла py, файла prg и результат его работы. А также результат работы с аналогичным файлом prg, но с ошибкой (отсутствует разрыв последней строки ";"). Беспокоиться об утечках памяти в процессе FoxPro9.exe не надо, в случае значительных утечек, https.net-сервер мягко перезапускает FoxPro9.exe. Повторитель компилирует prg-файлы только при отсутствии исполняемого fxp-файла. Если fxp-файл существует, используется существующий fxp-файл. Поэтому при внесении изменений в prg необходимо удалить соответствкющий fxp-файл.
 ### Пример Python скрипта test.py
-```Python
+```C#
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 # Тест. Вывод переменных окружения.                   03.05.2025  #
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
