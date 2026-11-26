@@ -1,5 +1,5 @@
 async function go(url2){
-  var d=""; // ������ ��� ������������� ������� ������
+  var d=""; // пример без использования входных данных
   try{
     req=await fetch(url2,{
         method:'POST', headers:{'Content-Type':
@@ -9,13 +9,16 @@ async function go(url2){
     if(req) if(req.ok){
       go2();
     }else{
-      alert("No se pudieron obtener los datos: "+req.statusText);
+      mess("Не удалось получить данные: "+req.statusText);
     }
   }catch(e){
-    alert("No se pueden transferir datos: "+e.message);
+    mess("Невозможно передать данные: "+e.message);
   }
+}
+function mess(x){
+  document.getElementById("result").innerHTML= x;
 }
 async function go2(){
   responseText = await req.text()
-  document.getElementById("result_prg").innerHTML= responseText
+  mess(responseText)
 }
