@@ -123,7 +123,7 @@ Stream debugInput = Console.IsInputRedirected
     ? Console.OpenStandardInput()
     : new MemoryStream(Encoding.UTF8.GetBytes("test_post_data=hello"));
 
-// Находим класс по имени и вызываем его метод RunAsync
+// Находим класс по имени и вызываем его метод EvalAsync
 var scriptType = typeof(Program).Assembly.GetTypes()
     .First(t => t.Name.Equals(scriptName, StringComparison.OrdinalIgnoreCase));
 var instance = Activator.CreateInstance(scriptType);
