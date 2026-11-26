@@ -15,10 +15,10 @@ async function go(url2){
     mess("Невозможно передать данные: "+e.message);
   }
 }
-function mess(x){
-  document.getElementById("result").innerHTML= x;
-}
 async function go2(){
   responseText = await req.text()
   mess(responseText)
+}
+function mess(x){
+  document.getElementById("result").innerHTML= x;
 }
