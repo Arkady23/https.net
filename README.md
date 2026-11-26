@@ -137,7 +137,7 @@ if(body!=null) Console.OpenStandardOutput().Write(body);
 
 //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 //!!  Тест. Вывод переменных окружения.                  24.11.2026  !!
-//!!  вызывается по URL .../test?123 или .../test.cs?456             !!
+//!!  вызывается по URL .../test.cs?123 или .../test?456             !!
 //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 public class Test {
   public async Task<(string status, byte[] body)> EvalAsync(
@@ -173,7 +173,7 @@ STD_INPUT={STD_INPUT}.
 
 //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 //!!   Проверка POST-запроса и работы трубы Pipe         26.11.2026  !!
-//!!   вызывается по URL .../post или .../post.cs                    !!
+//!!   вызывается по URL .../post.cs или .../post                    !!
 //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 public class Post {
   public async Task<(string status, byte[] body)> EvalAsync(Dictionary<string, string> env,
