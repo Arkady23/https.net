@@ -1,7 +1,7 @@
 //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 //!!                                                         !!
 //!!    https.net сервер на C#.      Автор: A.Б.Корниенко    !!
-//!!    class Session                версия от 26.11.2026    !!
+//!!    class Session                версия от 27.11.2026    !!
 //!!                                                         !!
 //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
@@ -564,14 +564,7 @@ namespace https2 {
       int i= F.DocumentRoot.Length;
       if(total <= i) return false;
 
-      // Проодготовим строку для быстрой проверки наличия файла
-      ReadOnlySpan<char> relativeRes = res.AsSpan(i, total-i);
-      Span<char> tempPath = stackalloc char[relativeRes.Length];
-      relativeRes.CopyTo(tempPath);
-      for (i= 0; i < tempPath.Length; i++) {
-        if(tempPath[i] == '/') tempPath[i] = '\\';
-      }
-      string finalPathToCheck = tempPath.ToString();
+      string finalPathToCheck= res.AsSpan(i, total-i).ToString();
 
       // Вызываем метод быстрой проверки наличия файла
       // dir16 == 0 -> ищем файл, любое другое -> ищем папку
@@ -1176,8 +1169,11 @@ namespace https2 {
       k = 0;              // Длина подготовленного заголовка
       l1 = false;         // Пока filename не найден
       string ret = string.Empty;
-      try{
-        ret = await Task.Run(() => F.vfp[m].Eval()).WaitAsync(exeCts.Token) as string;
+      i = F.DocumentRoot.Length;
+      l = F.dirtyPrg.GetAlternateLookup<ReadOnlySpan<char>>()
+                           .TryRemove(res.AsSpan(i, nres-i), out _);
+      try {
+        ret = await Task.Run(() => F.vfp[m].Eval(l)).WaitAsync(exeCts.Token) as string;
         await SetStatusAsync(ret).ConfigureAwait(false);
 
         // Получаем и отправляем в stream массив из FoxPro

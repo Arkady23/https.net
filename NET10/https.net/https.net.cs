@@ -1,7 +1,7 @@
 //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 //!!                                                     !!
 //!!   https.net сервер на C#.    Автор: A.Б.Корниенко   !!
-//!!   Головной блок              версия от 26.11.2026   !!
+//!!   Головной блок              версия от 27.11.2026   !!
 //!!                                                     !!
 //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
@@ -85,7 +85,7 @@ public class F : Form {
     public const string DI="index.html", stopIconText= hs+" is stopped",
                  logX=hn+".x.log", logY=hn+".y.log", DirectorySessions="Sessions",
            //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-                 ver="version 2.6.0", verD="November 2026";   //!!
+                 ver="version 2.6.1", verD="November 2026";   //!!
            //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     public const  int i8=1500000, i9=2147483647;
     public static int i, k, port, port1, Port, Port1, post, st, qu, bu, bu2, db, db1, maxVFP,
@@ -104,6 +104,8 @@ public class F : Form {
     public static bool notExit=false, notQuit=true, VFP9, VFPclr;
     public static Icon ico = Icon.ExtractAssociatedIcon(Fullexe);
     public static readonly byte[] CachedDateBytes = new byte[29];
+    public static ConcurrentDictionary<string, byte> dirtyPrg=
+                       new(StringComparer.OrdinalIgnoreCase);
     public static SslServerAuthenticationOptions cert = null;
     static List<DnsRecord> DnsCache = new List<DnsRecord>();
     static DateTime CertWriteTime = DateTime.UtcNow;
@@ -682,17 +684,28 @@ public class F : Form {
       if (cache.TryGetValue(cacheKey, out bool exists)) return exists;
 
       // 2. Промах мимо кэша — один раз лезем на диск через провайдер .NET 10
-      Microsoft.Extensions.FileProviders.IFileInfo fileInfo = 
+      Microsoft.Extensions.FileProviders.IFileInfo fileInfo =
                            fileProvider.GetFileInfo(relativePath);
-      exists = fileInfo.Exists && (isDir ? fileInfo.IsDirectory : !fileInfo.IsDirectory);
+
+      bool isPrg = false;
+      if (isDir) {
+        exists = fileInfo.Exists && fileInfo.IsDirectory;
+      } else {
+        exists = fileInfo.Exists && !fileInfo.IsDirectory;
+        isPrg = exists && relativePath.EndsWith(".prg", StringComparison.OrdinalIgnoreCase);
+      }
 
       // 3. Создаем подписку Windows на этот путь и защищаем память от ботов
       Microsoft.Extensions.Primitives.IChangeToken changeToken =
                            fileProvider.Watch(relativePath);
-    
+
       var cacheOptions = new MemoryCacheEntryOptions { Size = 1 };
       MemoryCacheEntryExtensions.AddExpirationToken(cacheOptions, changeToken);
-      IDisposable systemRegistration = changeToken.RegisterChangeCallback(_ => { }, null);
+
+      IDisposable systemRegistration = changeToken.RegisterChangeCallback(_ => {
+        if (isPrg) dirtyPrg[relativePath] = 0;
+      }, null);
+
       MemoryCacheEntryExtensions.RegisterPostEvictionCallback(cacheOptions,
              (key, value, reason, state) => {
          if (state is IDisposable disposable) disposable.Dispose();
