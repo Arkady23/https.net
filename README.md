@@ -15,10 +15,10 @@ The "-c filename.pfx" parameter specifies the name of the file containing your s
 
 The https.net server can update dynamic IPv6 in Cloudflare's AAAA DNS records. To do this, specify the -cloudflare-enc parameter, followed by an encrypted token with read access to the zone list and edit DNS records. The token is encrypted using the protect.net.exe console utility. The utility's parameter specifies the string to be encrypted. The encryption key is tied to the Windows 10/11 operating system. If the operating system is reinstalled, decryption will not occur, nor will the dynamic IPv6 update be performed.  
 
-Prg scripts are processed using COM technology and the included FoxPro9.exe repeater (32-bit), not CGI. COM objects are created as client requests are processed. If a Prg error occurs, a description of the error is returned to the script in the ERROR_MESS variable. Below are examples of a test C# (.cs) script, a Prg file, and the output from the test. Also included is the output from a similar Prg file, but with an error (the last line break ";" is missing). There is no need to worry about memory leaks in the FoxPro9.exe process; in case of significant leaks, the https.net server will soft-restart FoxPro9.exe. The repeater compiles prg files only if the executable fxp file is missing; if an fxp file exists, it is used, so you should delete the corresponding fxp file when modifying a prg script.
+Prg scripts are processed using COM technology and the included FoxPro9.exe repeater (32-bit), not CGI. COM objects are created as client requests are processed. If a Prg error occurs, a description of the error is returned to the script in the ERROR_MESS variable. Below are examples of a test C# (.cs) script, a Prg file, and the output from the test. Also included is the output from a similar Prg file, but with an error (the last line break ";" is missing). There is no need to worry about memory leaks in the FoxPro9.exe process; in case of significant leaks, the https.net server will soft-restart FoxPro9.exe. The repeater compiles .prg files whenever a .prg file is modified or if the corresponding .fxp bytecode is missing.
 ```PowerShell
 PS D:\> D:\work\httpd\https.net.exe /?
-Multithreaded https.net server version 2.6.0, (C) a.kornienko.ru November 2026.
+Multithreaded https.net server version 2.6.1, (C) a.kornienko.ru November 2026.
 
 USAGE:
     https.net [Parameter1 Value1] [Parameter2 Value2] ...
@@ -89,7 +89,7 @@ Parameters:                                                                  Val
 Сервер https.net может обновлять динамический IPv6 в записях AAAA DNS-серверов Cloudflare. Для этого необходимо задать параметр
 -cloudflare-enc, после которого указать зашифрованный токен с доступом чтения списка зон и редактирования DNS-записей. Шифрование токена производится с помощью консольной утилиты protect.net.exe. Параметром к утилите задается шифруемая строка.  Ключ шифрования привязан к операционной системе Windows 10/11. Если ОС переустановлена, дешифрация происходить не будет, как не будет производится и обновление динамического IPv6.  
 
-Обработка prg-скриптов происходит с использованием технологии COM и прилагаемого повторителя FoxPro9.exe (32 бит), а не CGI. COM-объекты создаются по мере выполнения запросов от клиентов. В случае ошибки в prg описание этой ошибки возвращается скрипту в переменной ERROR_MESS. Ниже приведены примеры тестового C#-скрипта, файла prg и результат его работы. А также результат работы с аналогичным файлом prg, но с ошибкой (отсутствует разрыв последней строки ";"). Беспокоиться об утечках памяти в процессе FoxPro9.exe не надо, в случае значительных утечек, https.net-сервер мягко перезапускает FoxPro9.exe. Повторитель компилирует prg-файлы только при отсутствии исполняемого fxp-файла. Если fxp-файл существует, используется существующий fxp-файл. Поэтому при внесении изменений в prg необходимо удалить соответствкющий fxp-файл.
+Обработка prg-скриптов происходит с использованием технологии COM и прилагаемого повторителя FoxPro9.exe (32 бит), а не CGI. COM-объекты создаются по мере выполнения запросов от клиентов. В случае ошибки в prg описание этой ошибки возвращается скрипту в переменной ERROR_MESS. Ниже приведены примеры тестового C#-скрипта, файла prg и результат его работы. А также результат работы с аналогичным файлом prg, но с ошибкой (отсутствует разрыв последней строки ";"). Беспокоиться об утечках памяти в процессе FoxPro9.exe не надо, в случае значительных утечек, https.net-сервер мягко перезапускает FoxPro9.exe. Повторитель компилирует prg-файлы при изменении prg-файла или при отсутствии fxp- байткода.
 ### Пример C# .NET10 скрипта index.cs
 ```C#
 using System;
@@ -399,3 +399,4 @@ Statistics        Avg      Stdev        Max
 2.4.4 September 2026. Доработана схема обновления динамического IPv6 на CloudFlare при нестабильной работе протокола v6 через IPv4.  
 2.5.0 - 2.5.1 October 2026. Исправлена ошибка шифрования токена/пароля. Заменена утилита шифрования токена/пароля protect.net.exe. Исправлена ошибка соединения при нестабильном IPv4 или IPv6 с сервером api.cloudflare.com.  
 2.6.0 November 2026. Вместо Python-скриптов реализован механизм работы со скриптами на C# .NET10.  
+2.6.1 November 2026. Теперь prg-скрипты при изменении компилируются на лету благодаря подписки на C#.  
