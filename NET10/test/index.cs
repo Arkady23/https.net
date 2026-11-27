@@ -83,8 +83,8 @@ STD_INPUT={STD_INPUT}.
 //!!   вызывается по URL .../post или .../post.cs                    !!
 //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 public class Post {
-  public async Task<(string status, byte[] body)> EvalAsync(Dictionary<string, string> env,
-                                                             Stream input) {
+  public async Task<(string status, byte[] body)> EvalAsync(
+               Dictionary<string, string> env, Stream input) {
     using var reader = new StreamReader(input, Encoding.UTF8, leaveOpen: true);
     string STD_INPUT = await reader.ReadToEndAsync();
     string DT = DateTime.Now.ToString("ddd MMM dd HH:mm:ss yyyy",
