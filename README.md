@@ -18,7 +18,7 @@ The https.net server can update dynamic IPv6 in Cloudflare's AAAA DNS records. T
 Prg scripts are processed using COM technology and the included FoxPro9.exe repeater (32-bit), not CGI. COM objects are created as client requests are processed. If a Prg error occurs, a description of the error is returned to the script in the ERROR_MESS variable. Below are examples of a test C# (.cs) script, a Prg file, and the output from the test. Also included is the output from a similar Prg file, but with an error (the last line break ";" is missing). There is no need to worry about memory leaks in the FoxPro9.exe process; in case of significant leaks, the https.net server will soft-restart FoxPro9.exe. The repeater compiles prg files whenever a prg file is modified or the corresponding fxp bytecode is missing.
 ```PowerShell
 PS D:\> D:\work\httpd\https.net.exe /?
-Multithreaded https.net server version 2.6.1, (C) a.kornienko.ru November 2026.
+Multithreaded https.net server version 2.6.2, (C) a.kornienko.ru November 2026.
 
 USAGE:
     https.net [Parameter1 Value1] [Parameter2 Value2] ...
@@ -399,4 +399,5 @@ Statistics        Avg      Stdev        Max
 2.4.4 September 2026. Доработана схема обновления динамического IPv6 на CloudFlare при нестабильной работе протокола v6 через IPv4.  
 2.5.0 - 2.5.1 October 2026. Исправлена ошибка шифрования токена/пароля. Заменена утилита шифрования токена/пароля protect.net.exe. Исправлена ошибка соединения при нестабильном IPv4 или IPv6 с сервером api.cloudflare.com.  
 2.6.0 November 2026. Вместо Python-скриптов реализован механизм работы со скриптами на C# .NET10.  
-2.6.1 November 2026. Теперь prg-скрипты при изменении компилируются на лету благодаря подписки на C#. Повторитель foxpro9.Shell тоже изменен (новая версия 0.0.4). Теперь метод Eval() может принимать логический параметр необходимости компиляции.
+2.6.1 November 2026. Теперь prg-скрипты при изменении компилируются на лету благодаря подписки на C#. Повторитель foxpro9.Shell тоже изменен (новая версия 0.0.4). Теперь метод Eval() может принимать логический параметр необходимости компиляции.  
+2.6.2 November 2026. Убрано излишнее переключение файлов журнала X и Y. Теперь один файл с логами не переключается на второй файл пока его размер не достигнет примерного значения, заданного аргументами сервера.
