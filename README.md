@@ -188,7 +188,9 @@ public class Post {
   }
 }
 ```
-Пример онлайн https://a.kornienko.ru:8443/test.cs?lkdlkdlkdlkdlkd
+Примеры онлайн:
+- https://a.kornienko.ru:8443/test.cs?lkdlkdlkdlkdlkd
+- https://a.kornienko.ru:8443/post.html
 ### Пример Visual Foxpro скрипта test.prg
 ```xBase
 * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
