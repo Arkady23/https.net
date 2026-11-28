@@ -1,7 +1,7 @@
 //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 //!!                                                     !!
 //!!   https.net сервер на C#.    Автор: A.Б.Корниенко   !!
-//!!   Головной блок              версия от 27.11.2026   !!
+//!!   Головной блок              версия от 28.11.2026   !!
 //!!                                                     !!
 //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
@@ -85,11 +85,11 @@ public class F : Form {
     public const string DI="index.html", stopIconText= hs+" is stopped",
                  logX=hn+".x.log", logY=hn+".y.log", DirectorySessions="Sessions",
            //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-                 ver="version 2.6.1", verD="November 2026";   //!!
+                 ver="version 2.6.2", verD="November 2026";   //!!
            //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     public const  int i8=1500000, i9=2147483647;
     public static int i, k, port, port1, Port, Port1, post, st, qu, bu, bu2, db, db1, maxVFP,
-                  log9, logi=0, st1, stf, qu1, tw, iIP, iIP1,
+                  logi=0, log9=int.MaxValue, st1, stf, qu1, tw, iIP, iIP1,
                   lastDay= DateTime.UtcNow.Day,  // день последнего запуска прверки сертификата
                   HeaderBufSize= 1024,    // 1 KB  - первоначальный размер буфера заголовков
                   HeaderBufSize2= 3072,   // 3 KB  - последующий размер буфера заголовков
@@ -731,8 +731,22 @@ public class F : Form {
     static void InitLogging() {
       lock (logFlush) {
         if(logFS == null) {
-           logZ = (File.GetLastWriteTime(logX) <= File.GetLastWriteTime(logY)) ? logX : logY;
-           log1();
+          FileInfo infoX = new FileInfo(logX);
+          FileInfo infoY = new FileInfo(logY);
+
+          // Если файла нет, LastWriteTime сам вернет минимальную дату (1601 год)
+          FileInfo newerFile = (infoX.LastWriteTime >= infoY.LastWriteTime) ? infoX : infoY;
+          FileInfo olderFile = (infoX.LastWriteTime >= infoY.LastWriteTime) ? infoY : infoX;
+
+          // Проверяем Exists только здесь, чтобы не упасть при чтении .Length
+          if(newerFile.Exists && newerFile.Length < 75L * log9) {
+            logZ = newerFile.FullName;
+            logi = (int)(newerFile.Length / 75);
+            log1(true);
+          } else {
+            logZ = olderFile.FullName;
+            log1();
+          }
         }
       }
     }
@@ -801,15 +815,12 @@ public class F : Form {
       try {
         await foreach (ReadOnlyMemory<char> x in reader.ReadAllAsync().ConfigureAwait(false)) {
           try {
-            if(logi >= log9 && logFS != null) {
+            if(log9 > 0 && logi >= log9 && logFS != null) {
               logA();
             } else {
               logi++;
             }
-            if(logFS == null) {
-              logZ = (File.GetLastWriteTime(logX) <= File.GetLastWriteTime(logY)) ? logX : logY;
-              log1();
-            }
+            if(logFS == null) InitLogging();
             try {
               // 1. Физически записываем лог на диск через StreamWriter
               logB(x); 
@@ -861,13 +872,14 @@ public class F : Form {
       }
     }
 
-    internal static void log1() {
+    internal static void log1(bool append = false) {
       // Настраиваем FileStream с оптимизированным размером буфера для частой записи
-      logFS = new FileStream(logZ, FileMode.Create, FileAccess.Write, FileShare.ReadWrite, bufferSize: 4096, useAsync: true);
-    
+      logFS = new FileStream(logZ, append? FileMode.Append: FileMode.Create, FileAccess.Write,
+                             FileShare.ReadWrite, bufferSize: 4096, useAsync: true);
+
       // Инициализируем StreamWriter строго в UTF-8 без BOM (стандарт для логов)
       logSW = new StreamWriter(logFS, UTF8);
-    
+
       // Перенаправляем потоки вывода C#. Теперь любой Console.Write будет писать напрямую в файл лога
       Console.SetError(logSW);
       Console.SetOut(logSW);
@@ -895,7 +907,13 @@ public class F : Form {
 
     // МЕТОД 2: Высоконагруженный фоновый логгер.
     public static void log2(ReadOnlyMemory<char> x) {
-      if (log9 > 0) logQueue.Writer.TryWrite(x);
+      // Если журнал выключен ИЛИ очередь не смогла принять запись —
+      // возвращаем массив в пул
+      if (log9 <= 0 || !logQueue.Writer.TryWrite(x)) {
+        if(MemoryMarshal.TryGetArray(x, out var segment) && segment.Array != null) {
+          ArrayPool<char>.Shared.Return(segment.Array);
+        }
+      }
     }
 
     // Суточная задача, которая уходит в пул потоков
