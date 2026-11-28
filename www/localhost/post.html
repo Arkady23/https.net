@@ -19,7 +19,7 @@ async function testPost(url){
   h=document.getElementsByTagName('INPUT')[0].value;
   b=document.getElementsByTagName('INPUT')[1].value;
   req=await fetch(url,{ method:'POST',headers:{ 'Content-Type':h },body: b })
-  document.getElementById("otvet").innerHTML = await req.text();
+  document.getElementById("otvet").innerHTML += await req.text()+"<br>\r\n";
 }
 </script>
 </body>
